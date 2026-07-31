@@ -3,6 +3,17 @@ import { loadEnv } from "vite";
 
 const mode = process.argv[2] ?? "development";
 const env = { ...loadEnv(mode, process.cwd(), "VITE_"), ...process.env };
+const mockResponseDelayMs = Number(env.VITE_MOCK_RESPONSE_DELAY_MS ?? "0");
+
+if (
+  !Number.isInteger(mockResponseDelayMs) ||
+  mockResponseDelayMs < 0 ||
+  mockResponseDelayMs > 1_000
+) {
+  throw new Error(
+    "VITE_MOCK_RESPONSE_DELAY_MS must be an integer from 0 through 1000",
+  );
+}
 
 await build({
   entryPoints: ["src/worker/mock.worker.ts"],
@@ -22,6 +33,9 @@ await build({
     ),
     "import.meta.env.VITE_LICENSE_URL": JSON.stringify(
       env.VITE_LICENSE_URL ?? "",
+    ),
+    "import.meta.env.VITE_MOCK_RESPONSE_DELAY_MS": JSON.stringify(
+      String(mockResponseDelayMs),
     ),
   },
   banner: {

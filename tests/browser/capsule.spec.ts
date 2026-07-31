@@ -81,8 +81,16 @@ test("serves the capsule with restrictive security headers", async ({
     "cross-origin",
   );
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(response.headers()["x-robots-tag"]).toBe("noindex, nofollow");
   const csp = response.headers()["content-security-policy"];
   expect(csp).toContain("worker-src blob:");
   expect(csp).toContain("frame-ancestors http://localhost:3100");
   expect(csp).not.toContain("'unsafe-inline'");
+  expect(await response.text()).toContain(
+    '<meta name="robots" content="noindex, nofollow" />',
+  );
+
+  const robots = await request.get("http://localhost:4174/robots.txt");
+  expect(robots.ok()).toBe(true);
+  expect(await robots.text()).toBe("User-agent: *\nDisallow: /\n");
 });

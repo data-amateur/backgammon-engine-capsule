@@ -1,10 +1,6 @@
-const DEVELOPMENT_PARENT_ORIGIN = "http://localhost:3000";
+import { isLoopbackHostname } from "../shared/webUrl";
 
-const isLoopbackHostname = (hostname: string): boolean =>
-  hostname === "localhost" ||
-  hostname === "127.0.0.1" ||
-  hostname === "[::1]" ||
-  hostname === "::1";
+const DEVELOPMENT_PARENT_ORIGIN = "http://localhost:3000";
 
 function parseOrigin(value: string): string {
   const url = new URL(value);

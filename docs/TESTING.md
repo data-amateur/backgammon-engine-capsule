@@ -11,6 +11,11 @@ handshake, exact metadata, legal decisions, cancellation suppression, one-time
 bootstrap, Blob Worker creation, response headers, and absence of CSP console
 errors.
 
+The checked-in verification environment delays mock Worker results by 100 ms.
+This gives the cancellation test a genuinely pending request instead of making
+its result depend on how the browser orders a zero-delay timer and a cancel
+message. Development and production builds default to no artificial delay.
+
 The current automated browser baseline is Chromium. Firefox and WebKit remain
 a release gate before claiming broad browser support because opaque sandbox,
 CORS, and Blob Worker behavior are the portability-sensitive boundary.

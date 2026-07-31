@@ -89,6 +89,7 @@ export function createChooseRequest(): BepChooseTurnRequest {
       },
       {
         id: "turn:second",
+        // Partial candidate: the authoritative host says only die 2 is playable.
         steps: [
           {
             from: { kind: "point", point: 12 },

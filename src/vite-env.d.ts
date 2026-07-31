@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_BUILD_ID?: string;
   readonly VITE_SOURCE_URL?: string;
   readonly VITE_LICENSE_URL?: string;
+  readonly VITE_MOCK_RESPONSE_DELAY_MS?: string;
 }
 
 interface ImportMeta {

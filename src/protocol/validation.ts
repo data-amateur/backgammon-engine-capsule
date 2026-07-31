@@ -30,6 +30,7 @@ import {
   type BepTurnStep,
   type Player,
 } from "./types";
+import { isLoopbackHostname } from "../shared/webUrl";
 
 export interface BoundedJsonOptions {
   readonly maxMessageBytes?: number;
@@ -50,7 +51,10 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
 const containsControlCharacter = (value: string): boolean => {
   for (let index = 0; index < value.length; index += 1) {
     const codePoint = value.charCodeAt(index);
-    if (codePoint <= 0x1f || codePoint === 0x7f) {
+    if (
+      codePoint <= 0x1f ||
+      (codePoint >= 0x7f && codePoint <= 0x9f)
+    ) {
       return true;
     }
   }
@@ -65,6 +69,10 @@ const isBoundedString = (
 export const isBepIdentifier = (value: unknown): value is string =>
   isBoundedString(value, BEP_RUNTIME_LIMITS.maxIdentifierLength) &&
   SAFE_IDENTIFIER_PATTERN.test(value);
+
+const isBepSessionNonce = (value: unknown): value is string =>
+  isBepIdentifier(value) &&
+  value.length >= BEP_RUNTIME_LIMITS.minSessionNonceLength;
 
 const isNonEmptyText = (value: unknown, maxLength = 256): value is string =>
   isBoundedString(value, maxLength) &&
@@ -83,13 +91,7 @@ const isSafeWebUrl = (value: unknown): value is string => {
     if (url.protocol === "https:") {
       return true;
     }
-    return (
-      url.protocol === "http:" &&
-      (url.hostname === "localhost" ||
-        url.hostname === "127.0.0.1" ||
-        url.hostname === "[::1]" ||
-        url.hostname === "::1")
-    );
+    return url.protocol === "http:" && isLoopbackHostname(url.hostname);
   } catch {
     return false;
   }
@@ -627,7 +629,7 @@ const isSearchStats = (value: unknown): value is BepSearchStats =>
   value.elapsedMs >= 0 &&
   (value.nodes === undefined || isNonNegativeInteger(value.nodes)) &&
   (value.depth === undefined || isNonNegativeInteger(value.depth)) &&
-  value.completed === true;
+  typeof value.completed === "boolean";
 
 const isRankedTurn = (value: unknown): value is BepRankedTurn =>
   isRecord(value) &&
@@ -698,7 +700,7 @@ export const isBepEngineError = (value: unknown): value is BepEngineError =>
 const hasValidEnvelopeBase = (value: Record<string, unknown>): boolean =>
   value.protocol === BEP_PROTOCOL &&
   value.version === BEP_VERSION &&
-  isBepIdentifier(value.sessionNonce);
+  isBepSessionNonce(value.sessionNonce);
 
 export const isBepChannelConnectMessage = (
   value: unknown,

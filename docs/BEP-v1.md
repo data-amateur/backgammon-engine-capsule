@@ -13,6 +13,10 @@ Every envelope contains:
 }
 ```
 
+Session nonces are safe identifiers between 32 and 128 characters. The host
+must generate them with cryptographically secure randomness; their purpose is
+to bind every private-port message to its one accepted bootstrap session.
+
 The one-time Window bootstrap uses kind `bep.channel-connect` and transfers one
 `MessagePort`. Host messages on that port are `bep.request`, `bep.cancel`, and
 `bep.dispose`; engine messages are `bep.result` and `bep.error`.
@@ -24,9 +28,22 @@ Methods are:
   legal-turn ID.
 - `decide-cube`: echoes the revision and returns one supplied legal action.
 
+Decision results include search statistics. `completed: false` is valid when
+the engine returns its best legal decision after reaching an internal search
+limit. Cancellation is different: a cancelled request produces no result, and
+the controller suppresses any late Worker response. `elapsedMs` accepts finite
+non-negative fractional milliseconds so engines can retain `performance.now()`
+precision.
+
 The board uses absolute points 0–23. White enters on 23 and moves toward 0;
 black enters on 0 and moves toward 23. Adapters must not rotate the BEP board
 for the engine player.
+
+Legal-turn candidates may consume fewer than all rolled dice when the
+authoritative host has determined that the remaining dice cannot be played.
+The capsule validates that every supplied step consumes an available die and
+moves in the correct direction, but it does not independently regenerate the
+host's legal-turn set.
 
 The capsule identity must be `gnubg-capsule` and its runtime transport must be
 `iframe`. The mock advertises standard match/money play, all five accepted

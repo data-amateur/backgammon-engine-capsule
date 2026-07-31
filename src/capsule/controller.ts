@@ -28,10 +28,6 @@ export interface CapsuleControllerOptions {
   readonly onStatusChange?: (status: CapsuleStatus, detail?: string) => void;
 }
 
-interface ActiveRequest {
-  readonly request: BepRequestMessage;
-}
-
 export class CapsuleController {
   private readonly allowedParentOrigins: ReadonlySet<string>;
   private readonly workerAssetUrl: string;
@@ -42,7 +38,7 @@ export class CapsuleController {
   private port: MessagePort | null = null;
   private runtime: WorkerRuntime | null = null;
   private runtimePromise: Promise<WorkerRuntime> | null = null;
-  private readonly activeRequests = new Map<string, ActiveRequest>();
+  private readonly activeRequests = new Map<string, BepRequestMessage>();
 
   public constructor(options: CapsuleControllerOptions) {
     this.allowedParentOrigins = options.allowedParentOrigins;
@@ -134,13 +130,13 @@ export class CapsuleController {
       return;
     }
 
-    this.activeRequests.set(request.requestId, { request });
+    this.activeRequests.set(request.requestId, request);
     try {
       const runtime = await this.ensureRuntime();
       if (!this.activeRequests.has(request.requestId) || this.disposed) {
         return;
       }
-      runtime.request(request.requestId, request.method, request.payload);
+      runtime.request(request);
     } catch (error) {
       if (!this.activeRequests.delete(request.requestId)) {
         return;
@@ -197,8 +193,8 @@ export class CapsuleController {
     method: BepMethod,
     payload: unknown,
   ): void {
-    const active = this.activeRequests.get(requestId);
-    if (!active || active.request.method !== method || !this.sessionNonce) {
+    const activeRequest = this.activeRequests.get(requestId);
+    if (!activeRequest || activeRequest.method !== method || !this.sessionNonce) {
       return;
     }
 
@@ -213,7 +209,7 @@ export class CapsuleController {
     };
     if (
       !isBepEngineToHostMessage(candidate) ||
-      !this.resultMatchesRequest(active.request, candidate)
+      !this.resultMatchesRequest(activeRequest, candidate)
     ) {
       this.activeRequests.delete(requestId);
       this.postError(requestId, method, {
@@ -263,7 +259,7 @@ export class CapsuleController {
     this.runtime = null;
     this.runtimePromise = null;
     failedRuntime?.dispose();
-    for (const [requestId, { request }] of this.activeRequests) {
+    for (const [requestId, request] of this.activeRequests) {
       this.postError(requestId, request.method, {
         code: "engine-crash",
         message: error.message,

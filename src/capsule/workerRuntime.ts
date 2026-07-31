@@ -2,13 +2,12 @@ import { hasBoundedJsonShape, isBepEngineError, isBepMethod, isRecord } from "..
 import type {
   BepEngineError,
   BepMethod,
-  BepMethodPayloads,
+  BepRequestMessage,
   BepRequestId,
 } from "../protocol/types";
 import type {
   CapsuleToWorkerMessage,
   CapsuleWorkerRequest,
-  WorkerToCapsuleMessage,
 } from "../worker/messages";
 
 const WORKER_READY_TIMEOUT_MS = 8_000;
@@ -147,21 +146,11 @@ export class WorkerRuntime {
     }
   }
 
-  public request<M extends BepMethod>(
-    requestId: BepRequestId,
-    method: M,
-    payload: BepMethodPayloads[M]["request"],
-  ): void {
+  public request(request: BepRequestMessage): void {
     if (this.disposed || !this.ready || !this.worker) {
       throw new Error("Capsule Worker is not ready");
     }
-    const message: CapsuleWorkerRequest = {
-      kind: "capsule.worker-request",
-      requestId,
-      method,
-      payload,
-    } as CapsuleWorkerRequest;
-    this.worker.postMessage(message);
+    this.worker.postMessage(this.createWorkerRequest(request));
   }
 
   public cancel(requestId: BepRequestId): void {
@@ -205,7 +194,7 @@ export class WorkerRuntime {
       this.fail(new Error("Capsule Worker returned a malformed message"));
       return;
     }
-    const message = event.data as unknown as WorkerToCapsuleMessage;
+    const message = event.data;
     if (
       (message.kind !== "capsule.worker-result" &&
         message.kind !== "capsule.worker-error") ||
@@ -223,8 +212,42 @@ export class WorkerRuntime {
       this.handlers.onError(message.requestId, message.method, message.error);
       return;
     }
+    // Payload validation and request correlation intentionally happen in the
+    // controller before any Worker result can cross the public BEP boundary.
     this.handlers.onResult(message.requestId, message.method, message.payload);
   };
+
+  private createWorkerRequest(
+    request: BepRequestMessage,
+  ): CapsuleWorkerRequest {
+    // The repeated branches intentionally preserve method/payload correlation
+    // while constructing the internal discriminated union without a cast.
+    switch (request.method) {
+      case "hello":
+        return {
+          kind: "capsule.worker-request",
+          requestId: request.requestId,
+          method: request.method,
+          payload: request.payload,
+        };
+      case "choose-turn":
+        return {
+          kind: "capsule.worker-request",
+          requestId: request.requestId,
+          method: request.method,
+          payload: request.payload,
+        };
+      case "decide-cube":
+        return {
+          kind: "capsule.worker-request",
+          requestId: request.requestId,
+          method: request.method,
+          payload: request.payload,
+        };
+    }
+    const exhaustiveRequest: never = request;
+    throw new Error(`Unsupported BEP request: ${String(exhaustiveRequest)}`);
+  }
 
   private readonly handleError = () => {
     this.fail(new Error("Capsule Worker crashed"));

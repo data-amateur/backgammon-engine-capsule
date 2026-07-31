@@ -1,13 +1,8 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
+import { isLoopbackHostname } from "./src/shared/webUrl";
 
 const DEV_PARENT_ORIGIN = "http://localhost:3000";
 const DEV_CAPSULE_ORIGIN = "http://localhost:4174";
-
-const isLoopbackHostname = (hostname: string): boolean =>
-  hostname === "localhost" ||
-  hostname === "127.0.0.1" ||
-  hostname === "[::1]" ||
-  hostname === "::1";
 
 function exactOrigin(value: string, variableName: string): string {
   const url = new URL(value.trim());
@@ -58,6 +53,7 @@ function createSecurityHeaders(
     "Cross-Origin-Resource-Policy": "cross-origin",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow",
     "Permissions-Policy":
       "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     "Content-Security-Policy": contentSecurityPolicy,

@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   hasBoundedJsonShape,
   isBepChooseTurnRequest,
+  isBepEngineError,
   isBepEngineToHostMessage,
   isBepHostToEngineMessage,
+  isBepPosition,
 } from "../../src/protocol/validation";
 import { BEP_PROTOCOL, BEP_VERSION } from "../../src/protocol/types";
-import { createChooseRequest } from "./fixtures";
+import { createBoard, createChooseRequest, createPosition } from "./fixtures";
 
 const NONCE = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -62,6 +64,96 @@ describe("BEP request validation", () => {
     expect(
       isBepHostToEngineMessage({ ...valid, sessionNonce: "contains spaces" }),
     ).toBe(false);
+    expect(
+      isBepHostToEngineMessage({ ...valid, sessionNonce: "short" }),
+    ).toBe(false);
+  });
+
+  it("accepts a partial legal turn but rejects unavailable die reuse", () => {
+    const request = createChooseRequest();
+    expect(
+      isBepChooseTurnRequest({
+        ...request,
+        legalTurns: [request.legalTurns[1]],
+      }),
+    ).toBe(true);
+    expect(
+      isBepChooseTurnRequest({
+        ...request,
+        legalTurns: [
+          {
+            id: "turn:reused-die",
+            steps: [
+              {
+                from: { kind: "point", point: 23 },
+                to: { kind: "point", point: 22 },
+                die: 1,
+                hit: false,
+              },
+              {
+                from: { kind: "point", point: 22 },
+                to: { kind: "point", point: 21 },
+                die: 1,
+                hit: false,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("position invariant validation", () => {
+  it("rejects simultaneous point occupation while preserving checker totals", () => {
+    const board = createBoard();
+    const points = board.points.map((point) => ({ ...point }));
+    points[0] = { white: 0, black: 1 };
+    points[23] = { white: 2, black: 1 };
+
+    expect(
+      isBepPosition(createPosition({ board: { ...board, points } })),
+    ).toBe(false);
+  });
+
+  it("enforces cube ownership and offered-phase consistency", () => {
+    const validOffer = createPosition({
+      phase: "cube-response",
+      dice: [],
+      cube: {
+        value: 2,
+        owner: null,
+        state: "offered",
+        offeredBy: "white",
+      },
+    });
+    expect(isBepPosition(validOffer)).toBe(true);
+    expect(
+      isBepPosition({
+        ...validOffer,
+        cube: { ...validOffer.cube, owner: "black" },
+      }),
+    ).toBe(false);
+  });
+
+  it("requires a match-point score for Crawford states", () => {
+    const beforeRoll = createPosition({ phase: "before-roll", dice: [] });
+    expect(
+      isBepPosition({
+        ...beforeRoll,
+        match: { ...beforeRoll.match, crawford: "crawford" },
+      }),
+    ).toBe(false);
+    expect(
+      isBepPosition({
+        ...beforeRoll,
+        match: {
+          ...beforeRoll.match,
+          score: { white: 4, black: 2 },
+          crawford: "crawford",
+        },
+      }),
+    ).toBe(true);
   });
 });
 
@@ -83,7 +175,7 @@ describe("bounded structured-clone validation", () => {
 });
 
 describe("BEP result validation", () => {
-  it("accepts a correlated-looking legal shape and rejects incomplete stats", () => {
+  it("accepts completed and partial searches but requires completion state", () => {
     const valid = {
       protocol: BEP_PROTOCOL,
       version: BEP_VERSION,
@@ -101,8 +193,32 @@ describe("BEP result validation", () => {
     expect(
       isBepEngineToHostMessage({
         ...valid,
+        payload: {
+          ...valid.payload,
+          stats: { elapsedMs: 0.125, completed: false },
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isBepEngineToHostMessage({
+        ...valid,
         payload: { ...valid.payload, stats: { elapsedMs: 0 } },
       }),
     ).toBe(false);
+  });
+});
+
+describe("engine error validation", () => {
+  it("rejects C0, DEL, and C1 control characters in messages", () => {
+    const base = {
+      code: "internal-error",
+      retryable: false,
+    };
+    expect(isBepEngineError({ ...base, message: "safe message" })).toBe(true);
+    for (const control of ["\u0000", "\u007f", "\u0085"]) {
+      expect(
+        isBepEngineError({ ...base, message: `bad${control}message` }),
+      ).toBe(false);
+    }
   });
 });

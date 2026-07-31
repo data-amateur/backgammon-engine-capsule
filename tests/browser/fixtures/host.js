@@ -117,6 +117,9 @@ async function run() {
       sessionNonce: NONCE,
       kind: "bep.channel-connect",
     },
+    // A sandbox without allow-same-origin has an opaque origin, so the
+    // bootstrap cannot name it as a target origin. Trust is enforced inside
+    // the capsule with event.source plus the exact parent-origin allowlist.
     "*",
     [channel.port2],
   );

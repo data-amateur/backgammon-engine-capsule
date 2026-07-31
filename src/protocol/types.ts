@@ -10,6 +10,7 @@ export const BEP_RUNTIME_LIMITS = {
   maxCubeValue: 4_096,
   maxStringLength: 64 * 1024,
   maxIdentifierLength: 128,
+  minSessionNonceLength: 32,
   maxUrlLength: 2_048,
   maxArrayLength: 4_096,
   maxObjectKeys: 128,

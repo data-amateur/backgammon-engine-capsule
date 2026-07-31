@@ -17,6 +17,9 @@ import type {
 
 const workerScope = globalThis as unknown as DedicatedWorkerGlobalScope;
 const pending = new Map<string, number>();
+const responseDelayMs = Number(
+  import.meta.env.VITE_MOCK_RESPONSE_DELAY_MS ?? "0",
+);
 let disposed = false;
 
 function postError(
@@ -86,7 +89,7 @@ function runRequest(message: CapsuleWorkerRequest): void {
         retryable: false,
       });
     }
-  }, 0);
+  }, responseDelayMs);
   pending.set(message.requestId, timeoutId);
 }
 
