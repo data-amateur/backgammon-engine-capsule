@@ -1,0 +1,40 @@
+# Installed dependencies and package-manager state
+node_modules/
+.npm/
+
+# Build output and tool caches
+dist/
+coverage/
+.cache/
+.vite/
+.eslintcache
+*.tsbuildinfo
+
+# Generated self-contained Worker bundle
+public/mock-engine.worker.js
+public/mock-engine.worker.js.map
+
+# Browser and test output
+playwright-report/
+test-results/
+blob-report/
+
+# Local environment configuration; keep safe templates/fixtures
+.env*
+!.env.example
+!.env.verification
+
+# Logs and process state
+*.log
+npm-debug.log*
+*.pid
+*.pid.lock
+
+# Editor and operating-system metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+

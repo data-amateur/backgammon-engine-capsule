@@ -1,0 +1,7 @@
+# Notice
+
+Copyright 2026 Backgammon Light contributors.
+
+This initial capsule contains an original deterministic mock engine and no GNU
+Backgammon source, binary, neural-network data, or other GPL engine component.
+

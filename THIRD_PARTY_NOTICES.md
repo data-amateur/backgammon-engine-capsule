@@ -1,0 +1,10 @@
+# Third-party notices
+
+The browser runtime has no third-party production dependency. Vite and esbuild
+compile the original project source into static JavaScript and CSS without
+shipping their optional module-preload polyfill or another runtime library.
+
+Development and test tools are listed in `package.json` and
+`package-lock.json`; their packages include their respective license files.
+Run `npm audit` and review the lockfile whenever these tools are updated.
+
