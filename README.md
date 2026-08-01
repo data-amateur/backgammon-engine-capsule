@@ -75,10 +75,14 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-`npm run verify` runs every non-browser check, including a native
-compile-time/runtime check of every frozen wasm32 ABI size and offset and the
-native GNUbg golden suite. With the separately installed pinned Emscripten SDK
-activated, `npm run test:wasm-abi` additionally builds and instantiates a tiny
+`npm run verify` runs every non-browser check, including every frozen
+wasm32 ABI size and offset, overflow-safe arena and UTF-8 tests, isolated
+fake-adapter lifecycle checks, successful and negative direct-versus-arena
+parity, and a separate real public-wrapper lifecycle process. Dedicated
+`test:wasm-abi-layout:sanitized` and `test:gnubg-native:sanitized`
+commands repeat the C boundary under ASan/UBSan, and CI runs them with Clang.
+With the separately installed pinned Emscripten SDK activated,
+`npm run test:wasm-abi` additionally builds and instantiates a tiny
 ABI-only `.mjs + .wasm` module. It does not link GNUbg or alter the active
 mock Worker. A separate CI job performs that real pinned-toolchain smoke test.
 Normal verification also makes a production-like browser build using the
@@ -142,12 +146,17 @@ and maximum-cube safety cases with pinned goldens. Source preparation applies
 and records the public GPL-side compatibility patches after authenticating the
 unchanged signed archive.
 
-The current increment freezes and tests ABI 1.0, pins Emscripten 6.0.5, and
-builds an ABI-only single-threaded modularized WebAssembly smoke module. The
-active browser Worker is still the GPL-free mock. The next increment adds safe
-arena marshalling and parity tests before compiling GNUbg evaluator objects for
-wasm32. All GNUbg source, patches, build scripts, WASM, networks, license
-material, and exact corresponding-source archives must remain in this public
+The current increment freezes ABI 1.0, pins Emscripten 6.0.5, and implements
+the bounded arena bridge for allocation, initialization, checker selection,
+cube decisions, reset, and terminal disposal. Fake-adapter lifecycle tests and
+the authenticated native GNUbg goldens exercise that exact marshalling path,
+including transactional output and ASan/UBSan runs. The pinned WebAssembly smoke
+module remains ABI-only, but its build also compile-checks the bridge and
+marshaller as wasm32 objects. The active browser Worker is still the GPL-free
+mock. The next increment links those objects with the selected GNUbg adapter
+and evaluator, resolving its GLib, initialization, and memory constraints. All
+GNUbg source, patches, build scripts, WASM, networks, license material, and
+exact corresponding-source archives must remain in this public
 capsule project—never in the proprietary application.
 
 See [the native harness guide](docs/GNUBG-NATIVE.md),

@@ -7,6 +7,15 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
+const arguments_ = process.argv.slice(2);
+const sanitized = arguments_.includes("--sanitized");
+const unknownArguments = arguments_.filter(
+  (argument) => argument !== "--sanitized",
+);
+if (unknownArguments.length > 0) {
+  throw new Error(`Unknown test argument: ${unknownArguments[0]}`);
+}
+const buildDirectory = sanitized ? "native-sanitized" : "native";
 const sourceLock = JSON.parse(
   readFileSync(
     path.join(repositoryRoot, "third_party/gnubg/source-lock.json"),
@@ -29,17 +38,33 @@ function run(command, args, options = {}) {
   }
 }
 
-run(process.execPath, [path.join(repositoryRoot, "scripts/build-gnubg-native.mjs")]);
-run(
-  path.join(repositoryRoot, "build/gnubg/native/gnubg-native-golden"),
-  [
-    path.join(
-      repositoryRoot,
-      "third_party/gnubg/work",
-      `gnubg-${sourceLock.version}`,
-    ),
-  ],
-  {
-    env: { ...process.env, G_DEBUG: "fatal-criticals" },
-  },
+run(process.execPath, [
+  path.join(repositoryRoot, "scripts/build-gnubg-native.mjs"),
+  ...(sanitized ? ["--sanitized"] : []),
+]);
+const sourceRoot = path.join(
+  repositoryRoot,
+  "third_party/gnubg/work",
+  `gnubg-${sourceLock.version}`,
 );
+const testEnvironment = {
+  ...process.env,
+  G_DEBUG: "fatal-criticals",
+  ...(sanitized
+    ? {
+        ASAN_OPTIONS:
+          "detect_leaks=1:halt_on_error=1:strict_string_checks=1",
+        UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1",
+      }
+    : {}),
+};
+for (const executable of [
+  "gnubg-native-golden",
+  "gnubg-wasm-public-smoke",
+]) {
+  run(
+    path.join(repositoryRoot, "build/gnubg", buildDirectory, executable),
+    [sourceRoot],
+    { env: testEnvironment },
+  );
+}

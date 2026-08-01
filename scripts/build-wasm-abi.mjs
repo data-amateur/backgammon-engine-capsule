@@ -149,9 +149,36 @@ const compileFlags = [
 ];
 run(compiler, compileFlags);
 
+const bridgeObjectSources = [
+  "gnubg_wasm_marshal.c",
+  "gnubg_wasm_bridge.c",
+];
+const bridgeObjects = bridgeObjectSources.map((source) =>
+  path.join(buildRoot, source.replace(/\.c$/u, ".o")),
+);
+const objectCompileFlags = [
+  "-std=c11",
+  "-O2",
+  "-Wall",
+  "-Wextra",
+  "-Werror",
+  "-pedantic",
+  `-I${sourceRoot}`,
+];
+for (let index = 0; index < bridgeObjectSources.length; index++) {
+  run(compiler, [
+    ...objectCompileFlags,
+    "-c",
+    path.join(sourceRoot, bridgeObjectSources[index]),
+    "-o",
+    bridgeObjects[index],
+  ]);
+}
+
 const artifacts = [
   moduleFile,
   path.join(buildRoot, "gnubg-wasm-abi.wasm"),
+  ...bridgeObjects,
 ].map((file) => ({
   file: path.relative(repositoryRoot, file),
   size: statSync(file).size,
@@ -162,7 +189,8 @@ writeFileSync(
   path.join(buildRoot, "build-info.json"),
   `${JSON.stringify(
     {
-      buildKind: "ABI-only wasm32 smoke module; no GNUbg evaluator linked",
+      buildKind:
+        "ABI-only wasm32 smoke module plus bridge compile check; no GNUbg evaluator linked",
       abiVersion: "1.0",
       lock,
       compiler: {
@@ -175,6 +203,8 @@ writeFileSync(
         installedRelease,
       },
       compileFlags,
+      bridgeObjectSources,
+      objectCompileFlags,
       artifacts,
     },
     null,

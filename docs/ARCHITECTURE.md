@@ -54,3 +54,11 @@ The C boundary currently accepts standard backgammon only and rejects other
 variation values and raccoon policy. It short-circuits unavailable offers and
 bounds pre-offer cube values before GNUbg internally doubles them. This keeps
 the future Worker API narrow and does not expose the GNUbg command parser.
+
+ABI 1.0 adds a second, wasm-safe layer around that adapter. JavaScript owns one
+bounded aligned byte arena and passes only offsets; the bridge validates all
+ranges and wire values, converts explicitly into native scratch storage, and
+commits output only after a complete successful adapter call. The public wrapper
+owns one engine and has a terminal Worker-scoped lifecycle. Native parity tests
+borrow the already-initialized golden engine so GNUbg is never initialized twice
+in one process. None of these native files enter the current mock Vite graph.

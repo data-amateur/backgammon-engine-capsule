@@ -1,8 +1,8 @@
 # GNUbg WebAssembly checkpoint
 
-This checkpoint proves the browser-facing binary boundary before attempting to
-link GNUbg. It does **not** change the capsule's active mock Worker and it does
-not copy WebAssembly into `public/` or `dist/`.
+This checkpoint implements and tests the browser-facing binary boundary before
+attempting to link GNUbg for wasm32. It does **not** change the capsule's active
+mock Worker and it does not copy WebAssembly into `public/` or `dist/`.
 
 ## What is frozen
 
@@ -19,14 +19,27 @@ every reserved field must be zero. The runtime descriptor lets TypeScript
 reject an unexpected layout at startup instead of silently reading the wrong
 bytes.
 
-The current exports only report and describe the ABI:
+The native wrapper now implements these public exports:
 
-- `bgc_wasm_abi_version`
-- `bgc_wasm_abi_descriptor_size`
-- `bgc_wasm_get_abi_descriptor`
+- `bgc_wasm_abi_version`, `bgc_wasm_abi_descriptor_size`, and
+  `bgc_wasm_get_abi_descriptor`;
+- bounded zeroed allocation through `bgc_wasm_alloc` and `bgc_wasm_free`;
+- `bgc_wasm_init`, `bgc_wasm_choose_turn`, `bgc_wasm_decide_cube`,
+  `bgc_wasm_reset`, and `bgc_wasm_dispose`.
 
-Engine initialization and decisions are intentionally deferred until arena
-range validation and native marshalling parity tests exist.
+The wrapper owns one process-scoped engine and has a terminal lifecycle. A
+wire-validation failure before the adapter call is retryable; once init reaches
+GNUbg, success or failure consumes that Worker. Dispose is idempotent and
+terminal. Calls are serial and non-reentrant, and no arena pointer is retained.
+
+The caller provides one four-byte-aligned, at-most-512-KiB arena. Every typed
+range is bounds-, overflow-, alignment-, and overlap-checked before use. Paths
+receive strict RFC 3629 UTF-8 validation. Wire values are copied into native
+structs field by field; native pointers and enum representations never cross the
+boundary. Results, score capacity, and the 256-byte error buffer are cleared
+before evaluation, and adapter outputs are committed only after full validation.
+The current pinned Emscripten smoke remains ABI-only; these engine exports are
+native-tested but are not yet linked to a wasm32 GNUbg evaluator.
 
 ## Pinned toolchain
 
@@ -70,11 +83,31 @@ digest in CI.
 
 ## Run the checkpoint
 
-The native layout test needs only a C11 compiler and always runs in
+The compiler-only host-native boundary suite always runs in
 `npm run verify`:
 
 ```bash
 npm run test:wasm-abi-layout
+```
+
+It checks every frozen layout, range arithmetic, strict UTF-8, and isolated
+fake-adapter validation/lifecycle scenarios. The real evaluator parity command additionally
+needs the authenticated native-build prerequisites documented in
+`GNUBG-NATIVE.md`:
+
+```bash
+npm run test:gnubg-native
+```
+
+It clean-builds the authenticated GNUbg source, requires successful and
+negative direct-adapter versus arena-bridge parity, and then starts a separate
+process that initializes and exercises the public wrapper with real assets. To repeat
+both safety-sensitive layers with AddressSanitizer and
+UndefinedBehaviorSanitizer:
+
+```bash
+npm run test:wasm-abi-layout:sanitized
+npm run test:gnubg-native:sanitized
 ```
 
 With the pinned SDK activated, build and instantiate the ABI-only module:
@@ -87,6 +120,8 @@ The build writes ignored files under `build/gnubg/wasm-abi/`:
 
 - `gnubg-wasm-abi.mjs`
 - `gnubg-wasm-abi.wasm`
+- compile-only `gnubg_wasm_marshal.o` and `gnubg_wasm_bridge.o`, proving
+  the reviewed bridge is valid wasm32 C without linking the evaluator
 - `build-info.json`, containing the exact lock, compiler identity, flags,
   artifact sizes, and SHA-256 hashes
 
@@ -96,10 +131,15 @@ words, and failure behavior for null or undersized output buffers.
 
 ## Next implementation boundary
 
-After this smoke module passes, add overflow-safe arena range helpers and pure
-conversion tests. Then marshal the existing native checker and cube goldens
-through the wrapper and compare them with direct adapter results. Only after
-that parity is green should the GNUbg evaluator objects be compiled for wasm32.
+The bridge and marshaller now compile cleanly to wasm32 objects. The next
+boundary is linking them with the typed adapter and selected GNUbg evaluator
+objects in a runnable Emscripten module. First resolve the pinned
+GLib surface (or replace it with a reviewed public compatibility patch), make
+upstream initialization report failures instead of terminating, and reduce the
+large evaluator caches before startup. Then run the same fixtures through a real
+Emscripten module, using exact decision/index comparison and a documented small
+float tolerance across host and wasm compilers.
 
-GNUbg's GLib dependency and fatal initialization paths remain separate link
-and runtime problems. They are not hidden by this ABI checkpoint.
+Only after real wasm32 parity, asset-failure handling, Worker termination and
+recreation tests, and measured memory/download/latency results are green should
+the compute Worker replace the GPL-free mock.

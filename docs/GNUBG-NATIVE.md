@@ -29,11 +29,18 @@ The command performs these steps as a clean build:
    multithreading.
 5. Compiles only the evaluator-oriented native units and GNUbg's internal
    neural-network support library.
-6. Links the GPL adapter and golden-test executable under
-   `build/gnubg/native/`.
-7. Runs the golden fixtures against `gnubg.weights` and
-   `met/Kazaross-XG2.xml` from the authenticated extraction, with GLib
-   criticals promoted to fatal errors.
+6. Links separate golden/parity and public-wrapper smoke executables under
+   `build/gnubg/native/`. The public executable does not link the direct test
+   helper and runs in its own process because GNUbg initialization is global.
+7. Runs selected successful checker/cube fixtures directly and again through
+   the borrowed-engine arena bridge, requiring identical status, index, and
+   float bits. Representative negative fixtures also require identical
+   `ILLEGAL_TURN`, `INVALID_POSITION`, `INVALID_ARGUMENT`, and
+   `UNSUPPORTED` statuses with transactional zero outputs.
+8. Starts a fresh process, initializes through the public arena export with the
+   real authenticated assets, makes a checker decision, resets, disposes, and
+   verifies the terminal lifecycle. Both executables use `gnubg.weights` and
+   `met/Kazaross-XG2.xml`, with GLib criticals promoted to fatal errors.
 
 Generated extraction and build directories are ignored by Git. They can be
 deleted at any time and recreated by the command above.
@@ -45,8 +52,16 @@ are normally provided by `build-essential`, `pkg-config`, and
 
 This build is repeatable from the authenticated source, but is not claimed to
 be bit-for-bit reproducible: the compiler, effective flags, host, and system
-GLib are not pinned yet. Each run records those ambient inputs and tool versions
-in ignored `build/gnubg/native/build-info.json` so differences are visible.
+GLib are not pinned yet. Each run applies inherited `CPPFLAGS`, `CFLAGS`,
+and `LDFLAGS` consistently to upstream and harness builds, and records those
+ambient inputs and tool versions in ignored
+`build/gnubg/native/build-info.json` so differences are visible. Those flag
+variables must contain simple whitespace-separated tokens; shell quoting,
+backslash escaping, and multiword wrapper commands are deliberately not
+evaluated. `CC` and `MAKE` must each name one executable or absolute path.
+`npm run test:gnubg-native:sanitized` uses a separate
+`build/gnubg/native-sanitized/` tree and instruments upstream GNUbg plus the
+adapter and bridge with AddressSanitizer and UndefinedBehaviorSanitizer.
 
 ## Deliberate link boundary
 
@@ -189,7 +204,14 @@ The executable currently checks:
   ceilings;
 - a race position that exercises the no-two-sided-database compatibility patch
   while GLib criticals are fatal;
-- evaluator cache reset and clean shutdown.
+- evaluator cache reset and clean shutdown;
+- exact direct-versus-arena checker and cube success parity, including bar
+  hits, money and match play, both colors, reordered legal subsets, evaluated
+  and short-circuited cube decisions, and the two-ply preset;
+- negative arena parity for illegal turns, invalid positions/arguments, and
+  unsupported evaluator bounds, requiring transactional zero outputs;
+- a separate real public-wrapper process covering asset-path init, duplicate
+  init, checker selection, reset, idempotent dispose, and terminal calls.
 
 ## Known limitations before WASM
 

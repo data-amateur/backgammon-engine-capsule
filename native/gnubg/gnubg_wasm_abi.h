@@ -22,6 +22,7 @@ extern "C" {
 #define BGC_WASM_MAX_CUBE_ACTIONS 6u
 #define BGC_WASM_MAX_PATH_BYTES 1024u
 #define BGC_WASM_ERROR_MESSAGE_LENGTH 256u
+#define BGC_WASM_MAX_ARENA_BYTES UINT32_C(524288)
 
 /* Explicit wire values. Never expose a C enum's implementation-defined size. */
 #define BGC_WASM_STATUS_OK INT32_C(0)
@@ -157,8 +158,9 @@ typedef struct {
  * Arena contract for all future call exports:
  * - Every offset is a byte offset relative to one caller-owned arena. Offset
  *   zero is valid for a nonempty range; it is not a null sentinel.
- * - Request/result offsets and typed struct/array offsets are 4-byte aligned.
- *   UTF-8 path byte ranges require only byte alignment.
+ * - The arena base and request/result/typed struct/array offsets are 4-byte
+ *   aligned. UTF-8 path byte ranges require only byte alignment.
+ * - Arena size is 1..BGC_WASM_MAX_ARENA_BYTES.
  * - Every offset-plus-size and count-times-element-size calculation is checked
  *   for overflow and must remain wholly inside the arena.
  * - All nonempty ranges referenced by one call are pairwise disjoint. Empty
@@ -166,6 +168,9 @@ typedef struct {
  * - Both init paths are required, contain 1..BGC_WASM_MAX_PATH_BYTES valid
  *   UTF-8 bytes, exclude a terminating NUL, and contain no embedded NUL. The
  *   wrapper copies each range and appends the C terminator itself.
+ * - Unused inline turn steps and unused cube-action slots are ignored.
+ * - Calls are serial and non-reentrant in one non-pthread Worker. The wrapper
+ *   never retains an arena pointer after a call.
  */
 typedef struct {
     bgc_wasm_header_v1 header;
@@ -248,6 +253,44 @@ typedef struct {
 uint32_t bgc_wasm_abi_version(void);
 uint32_t bgc_wasm_abi_descriptor_size(void);
 int32_t bgc_wasm_get_abi_descriptor(void *output, uint32_t output_size);
+
+/*
+ * The wrapper owns its engine. Initialization may reach the native evaluator
+ * only once; dispose is terminal and a fresh Worker is required to re-init.
+ */
+uint8_t *bgc_wasm_alloc(uint32_t byte_size);
+void bgc_wasm_free(uint8_t *memory);
+
+int32_t bgc_wasm_init(
+    uint8_t *arena,
+    uint32_t arena_size,
+    uint32_t request_offset,
+    uint32_t error_offset
+);
+
+int32_t bgc_wasm_choose_turn(
+    uint8_t *arena,
+    uint32_t arena_size,
+    uint32_t request_offset,
+    uint32_t result_offset,
+    uint32_t error_offset
+);
+
+int32_t bgc_wasm_decide_cube(
+    uint8_t *arena,
+    uint32_t arena_size,
+    uint32_t request_offset,
+    uint32_t result_offset,
+    uint32_t error_offset
+);
+
+int32_t bgc_wasm_reset(
+    uint8_t *arena,
+    uint32_t arena_size,
+    uint32_t error_offset
+);
+
+void bgc_wasm_dispose(void);
 
 #ifdef __cplusplus
 }

@@ -34,17 +34,30 @@ indices, owned redoubles, color reflection, post-Crawford response, and the
 match/money cube ceilings. Native execution treats GLib criticals as fatal, and
 a race fixture exercises the no-two-sided-database compatibility patch.
 
-The always-on wasm32 ABI layout test compiles the parallel public ABI with the
-host C11 compiler. Static assertions pin every published size and offset; its
-runtime descriptor test also checks versioning, reserved words, and null or
-undersized output behavior. With the external Emscripten 6.0.5 SDK activated,
+The always-on wasm32 ABI boundary suite compiles the public ABI with the host
+C11 compiler. Static assertions pin every published size and offset; its
+runtime descriptor checks versioning and output guards. Pure tests cover arena
+alignment/size, overflow-safe byte and array ranges, overlap and adjacency,
+empty-range sentinels, strict RFC 3629 UTF-8, and load/store/clear helpers. A
+fake adapter then exercises allocation, all five strengths, exact conversion,
+composed header/range/enum validation, retryable structural init rejection,
+terminal adapter-reaching init/dispose, success, reset, and transactional
+checker/cube failures in isolated processes. Hostile adapters that report
+success with null, out-of-range, mismatched, or non-finite output are also
+rejected without committing partial results. The authenticated
+native goldens re-evaluate shared checker and cube fixtures through the same
+borrowed-engine arena path and compare exact float bits, selected indices, and
+representative negative status mappings with transactional outputs. A separate
+process initializes the public wrapper with real assets and covers its terminal
+lifecycle. ASan/UBSan variants cover both layers and run in a dedicated CI job.
+With the external Emscripten 6.0.5 SDK activated,
 `npm run test:wasm-abi` builds an ignored ABI-only module and instantiates it in
 Node, confirming wasm32 pointer width, little-endian reads, and the same layout.
 A separate CI job installs the exact locked SDK and runs the real wasm32 smoke
 test. Neither test links the GNUbg evaluator or changes the mock browser
 artifact.
 
-Preserve all mock tests. Before the WASM bridge ships, add remaining checker
+Preserve all mock tests. Before the real engine ships, add remaining checker
 higher-die/partial-turn and doubles fixtures, run the same native goldens against
-wasm32, and add asset failures, Worker termination/recreation, and cold/warm
-startup and decision measurements.
+the fully linked wasm32 module, and add asset failures, Worker
+termination/recreation, and cold/warm startup and decision measurements.

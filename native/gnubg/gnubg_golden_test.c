@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 #include "gnubg_adapter.h"
+#include "gnubg_wasm_test_support.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -163,6 +164,10 @@ test_complete_bar_hit(bgc_engine *engine)
     if (best_index != 0 || !isfinite(score.score) ||
         !isfinite(score.cubeless_score))
         record_failure(test, "did not return a finite score for candidate zero");
+    if (!bgc_wasm_test_expect_choose_parity(
+            test, engine, &position, &candidate, 1, &settings,
+            &score, 1, best_index))
+        failures++;
 
     status = bgc_engine_choose_turn(engine, &position,
                                     &non_boolean_hit_candidate, 1,
@@ -201,6 +206,17 @@ test_complete_bar_hit(bgc_engine *engine)
                                     &settings, &score, 1, &best_index, &error);
     expect_status("unsupported variation", status,
                   BGC_STATUS_UNSUPPORTED, &error);
+
+    position.rules.variation = BGC_VARIATION_STANDARD;
+    position.rules.raccoons = 1;
+    status = bgc_engine_choose_turn(engine, &position, &candidate, 1,
+                                    &settings, &score, 1, &best_index, &error);
+    if (expect_status("unsupported raccoon policy", status,
+                      BGC_STATUS_UNSUPPORTED, &error) &&
+        !bgc_wasm_test_expect_choose_failure(
+            "unsupported raccoon policy", engine, &position,
+            &candidate, 1, &settings, BGC_STATUS_UNSUPPORTED))
+        failures++;
 }
 
 static void
@@ -221,6 +237,7 @@ test_oversize_bearoff_rejected(bgc_engine *engine)
     bgc_candidate_score score;
     size_t best_index = 0;
     bgc_error error;
+    bgc_status status;
 
     position.board.points[4].white = 1;
     position.board.points[1].white = 1;
@@ -228,10 +245,14 @@ test_oversize_bearoff_rejected(bgc_engine *engine)
     position.board.points[0].black = 1;
     position.board.borne_off.black = 14;
 
-    expect_status(test,
-                  bgc_engine_choose_turn(engine, &position, &candidate, 1,
-                                         &settings, &score, 1, &best_index, &error),
-                  BGC_STATUS_ILLEGAL_TURN, &error);
+    status = bgc_engine_choose_turn(
+        engine, &position, &candidate, 1, &settings, &score, 1,
+        &best_index, &error);
+    if (expect_status(test, status, BGC_STATUS_ILLEGAL_TURN, &error) &&
+        !bgc_wasm_test_expect_choose_failure(
+            test, engine, &position, &candidate, 1, &settings,
+            BGC_STATUS_ILLEGAL_TURN))
+        failures++;
 }
 
 static void
@@ -258,15 +279,20 @@ test_invalid_match_score_rejected(bgc_engine *engine)
     bgc_candidate_score score;
     size_t best_index = 0;
     bgc_error error;
+    bgc_status status;
 
     position.match.mode = BGC_MATCH_MODE_MATCH;
     position.match.length = 5;
     position.match.score.white = 5;
 
-    expect_status(test,
-                  bgc_engine_choose_turn(engine, &position, &candidate, 1,
-                                         &settings, &score, 1, &best_index, &error),
-                  BGC_STATUS_INVALID_POSITION, &error);
+    status = bgc_engine_choose_turn(
+        engine, &position, &candidate, 1, &settings, &score, 1,
+        &best_index, &error);
+    if (expect_status(test, status, BGC_STATUS_INVALID_POSITION, &error) &&
+        !bgc_wasm_test_expect_choose_failure(
+            test, engine, &position, &candidate, 1, &settings,
+            BGC_STATUS_INVALID_POSITION))
+        failures++;
 
     position.match.score.white = 256;
     expect_status("wide match score rejection",
@@ -346,10 +372,19 @@ score_start_candidates(bgc_engine *engine, const bgc_player player,
     candidates[1].step_count = 2;
     status = bgc_engine_choose_turn(engine, &position, candidates, 2,
                                     &settings, scores, 2, best_index, &error);
-    return expect_status(player == BGC_PLAYER_WHITE
-                             ? "white candidate scoring"
-                             : "black candidate scoring",
-                         status, BGC_STATUS_OK, &error);
+    {
+        const char *test = player == BGC_PLAYER_WHITE
+            ? "white candidate scoring" : "black candidate scoring";
+        if (!expect_status(test, status, BGC_STATUS_OK, &error))
+            return 0;
+        if (!bgc_wasm_test_expect_choose_parity(
+                test, engine, &position, candidates, 2, &settings,
+                scores, 2, *best_index)) {
+            failures++;
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static const char *
@@ -518,6 +553,12 @@ expect_cube_call(bgc_engine *engine, const char *test,
                  expected_evaluated, cube_action_name(analysis->decision),
                  analysis->selected_index, analysis->evaluated);
         record_failure(test, message);
+        return 0;
+    }
+    if (!bgc_wasm_test_expect_cube_parity(
+            test, engine, position, phase, engine_player, actions,
+            action_count, &settings, analysis)) {
+        failures++;
         return 0;
     }
     return 1;
@@ -699,6 +740,7 @@ test_cube_beavers_and_jacoby(bgc_engine *engine)
     bgc_position position = cube_beaver_position();
     bgc_position response;
     bgc_error error;
+    bgc_status status;
 
     expect_position_id("beaver Position ID", &position,
                        "YP4NABxAsP8DCA");
@@ -740,12 +782,16 @@ test_cube_beavers_and_jacoby(bgc_engine *engine)
                      beaver_only, 1, BGC_CUBE_ACTION_BEAVER, 0, 0,
                      &analysis);
     response.cube.value = 2048;
-    expect_status("oversize beaver cube rejection",
-                  bgc_engine_decide_cube(
-                      engine, &response, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
-                      BGC_PLAYER_BLACK, beaver_only, 1, &settings,
-                      &analysis, &error),
-                  BGC_STATUS_INVALID_ARGUMENT, &error);
+    status = bgc_engine_decide_cube(
+        engine, &response, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
+        BGC_PLAYER_BLACK, beaver_only, 1, &settings, &analysis, &error);
+    if (expect_status("oversize beaver cube rejection", status,
+                      BGC_STATUS_INVALID_ARGUMENT, &error) &&
+        !bgc_wasm_test_expect_cube_failure(
+            "oversize beaver cube rejection", engine, &response,
+            BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+            beaver_only, 1, &settings, BGC_STATUS_INVALID_ARGUMENT))
+        failures++;
 
     position = cube_too_good_position();
     expect_position_id("too-good Position ID", &position,
@@ -789,6 +835,7 @@ test_cube_boundaries_and_validation(bgc_engine *engine)
     bgc_position position = starting_position(BGC_PLAYER_WHITE, 0, 0);
     bgc_cube_analysis analysis;
     bgc_error error;
+    bgc_status status;
 
     position.match.mode = BGC_MATCH_MODE_MATCH;
     position.match.length = 64;
@@ -799,12 +846,16 @@ test_cube_boundaries_and_validation(bgc_engine *engine)
                      &analysis);
     position.cube.state = BGC_CUBE_STATE_OFFERED;
     position.cube.offered_by = BGC_PLAYER_WHITE;
-    expect_status("match cube-64 response bound",
-                  bgc_engine_decide_cube(
-                      engine, &position, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
-                      BGC_PLAYER_BLACK, response_actions, 2, &settings,
-                      &analysis, &error),
-                  BGC_STATUS_UNSUPPORTED, &error);
+    status = bgc_engine_decide_cube(
+        engine, &position, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
+        BGC_PLAYER_BLACK, response_actions, 2, &settings, &analysis, &error);
+    if (expect_status("match cube-64 response bound", status,
+                      BGC_STATUS_UNSUPPORTED, &error) &&
+        !bgc_wasm_test_expect_cube_failure(
+            "match cube-64 response bound", engine, &position,
+            BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+            response_actions, 2, &settings, BGC_STATUS_UNSUPPORTED))
+        failures++;
 
     position = starting_position(BGC_PLAYER_WHITE, 0, 0);
     position.cube.value = BGC_MAX_CUBE_VALUE;

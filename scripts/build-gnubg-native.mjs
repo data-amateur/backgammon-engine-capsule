@@ -13,6 +13,14 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
+const arguments_ = process.argv.slice(2);
+const sanitized = arguments_.includes("--sanitized");
+const unknownArguments = arguments_.filter(
+  (argument) => argument !== "--sanitized",
+);
+if (unknownArguments.length > 0) {
+  throw new Error(`Unknown build argument: ${unknownArguments[0]}`);
+}
 const sourceLock = JSON.parse(
   readFileSync(
     path.join(repositoryRoot, "third_party/gnubg/source-lock.json"),
@@ -24,7 +32,10 @@ const sourceRoot = path.join(
   "third_party/gnubg/work",
   `gnubg-${sourceLock.version}`,
 );
-const buildRoot = path.join(repositoryRoot, "build/gnubg/native");
+const buildRoot = path.join(
+  repositoryRoot,
+  sanitized ? "build/gnubg/native-sanitized" : "build/gnubg/native",
+);
 const adapterRoot = path.join(repositoryRoot, "native/gnubg");
 const compiler = process.env.CC || "cc";
 const make = process.env.MAKE || "make";
@@ -53,11 +64,13 @@ function run(command, args, options = {}) {
   return options.capture ? result.stdout.trim() : "";
 }
 
-function shellWords(value) {
-  // pkg-config emits plain compiler flags for the dependencies used here.
-  // Reject quoting instead of pretending this tiny splitter is a shell.
+function simpleWords(value, source) {
+  // This intentionally supports argv-like tokens, not shell evaluation.
   if (/["'`\\]/u.test(value)) {
-    throw new Error(`Unsupported quoted pkg-config output: ${value}`);
+    throw new Error(
+      `${source} must use simple whitespace-separated tokens; ` +
+        "quotes and backslashes are not supported",
+    );
   }
   return value ? value.split(/\s+/u) : [];
 }
@@ -89,6 +102,53 @@ const inheritedEnvironment = Object.fromEntries(
     .filter((name) => Object.hasOwn(process.env, name))
     .map((name) => [name, process.env[name]]),
 );
+const inheritedCppFlags = simpleWords(
+  process.env.CPPFLAGS ?? "",
+  "CPPFLAGS",
+);
+const inheritedCFlags = simpleWords(process.env.CFLAGS ?? "", "CFLAGS");
+const inheritedLdFlags = simpleWords(
+  process.env.LDFLAGS ?? "",
+  "LDFLAGS",
+);
+const sanitizerCompileFlags = [
+  "-O1",
+  "-g",
+  "-fno-omit-frame-pointer",
+  "-fno-sanitize-recover=all",
+  "-fsanitize=address,undefined",
+];
+const sanitizerLinkFlags = ["-fsanitize=address,undefined"];
+const modeCompileFlags = sanitized
+  ? sanitizerCompileFlags
+  : inheritedCFlags.length > 0
+    ? []
+    : ["-O2"];
+const modeLinkFlags = sanitized ? sanitizerLinkFlags : [];
+const effectiveCompileFlags = [
+  ...inheritedCppFlags,
+  ...inheritedCFlags,
+  ...modeCompileFlags,
+];
+/* Automake includes CFLAGS in compiler-driver link commands; mirror it. */
+const effectiveLinkFlags = [
+  ...inheritedCFlags,
+  ...inheritedLdFlags,
+  ...modeLinkFlags,
+];
+const buildEnvironment = {
+  ...process.env,
+  CFLAGS: [process.env.CFLAGS, ...modeCompileFlags]
+    .filter(Boolean)
+    .join(" "),
+  ...(sanitized
+    ? {
+        LDFLAGS: [process.env.LDFLAGS, ...sanitizerLinkFlags]
+          .filter(Boolean)
+          .join(" "),
+      }
+    : {}),
+};
 
 run(process.execPath, [path.join(repositoryRoot, "scripts/prepare-gnubg-source.mjs")]);
 const preparedSource = JSON.parse(
@@ -112,6 +172,7 @@ const configureFlags = [
 ];
 run(path.join(sourceRoot, "configure"), configureFlags, {
   cwd: buildRoot,
+  env: buildEnvironment,
 });
 
 const coreObjects = [
@@ -128,16 +189,20 @@ const coreObjects = [
 const jobs = Math.max(1, Math.min(os.availableParallelism?.() ?? 2, 8));
 run(make, [`-j${jobs}`, "--silent", ...coreObjects], {
   cwd: buildRoot,
+  env: buildEnvironment,
 });
 run(make, [`-j${jobs}`, "--silent"], {
   cwd: path.join(buildRoot, "lib"),
+  env: buildEnvironment,
 });
 
-const glibCflags = shellWords(
+const glibCflags = simpleWords(
   run("pkg-config", ["--cflags", "glib-2.0"], { capture: true }),
+  "pkg-config --cflags glib-2.0 output",
 );
-const glibLibraries = shellWords(
+const glibLibraries = simpleWords(
   run("pkg-config", ["--libs", "glib-2.0"], { capture: true }),
+  "pkg-config --libs glib-2.0 output",
 );
 const toolchain = {
   compilerVersion: firstLine(run(compiler, ["--version"], { capture: true })),
@@ -148,7 +213,7 @@ const toolchain = {
 };
 const commonCompileFlags = [
   "-std=c11",
-  "-O2",
+  ...effectiveCompileFlags,
   "-Wall",
   "-Wextra",
   "-Werror",
@@ -160,34 +225,63 @@ const commonCompileFlags = [
   ...glibCflags,
 ];
 
-const adapterObject = path.join(buildRoot, "gnubg_adapter.o");
-const testObject = path.join(buildRoot, "gnubg_golden_test.o");
-run(compiler, [
-  ...commonCompileFlags,
-  "-c",
-  path.join(adapterRoot, "gnubg_adapter.c"),
-  "-o",
-  adapterObject,
-]);
-run(compiler, [
-  ...commonCompileFlags,
-  "-c",
-  path.join(adapterRoot, "gnubg_golden_test.c"),
-  "-o",
-  testObject,
-]);
+const harnessSources = [
+  "gnubg_adapter.c",
+  "gnubg_wasm_abi.c",
+  "gnubg_wasm_marshal.c",
+  "gnubg_wasm_bridge.c",
+  "gnubg_wasm_test_support.c",
+  "gnubg_golden_test.c",
+  "gnubg_wasm_public_smoke_test.c",
+];
+const harnessObjects = harnessSources.map((source) =>
+  path.join(buildRoot, source.replace(/\.c$/u, ".o")),
+);
+for (let index = 0; index < harnessSources.length; index++) {
+  run(compiler, [
+    ...commonCompileFlags,
+    "-c",
+    path.join(adapterRoot, harnessSources[index]),
+    "-o",
+    harnessObjects[index],
+  ]);
+}
 
-const executable = path.join(buildRoot, "gnubg-native-golden");
-run(compiler, [
-  "-o",
-  executable,
-  adapterObject,
-  testObject,
-  ...coreObjects.map((object) => path.join(buildRoot, object)),
-  path.join(buildRoot, "lib/.libs/libevent.a"),
-  ...glibLibraries,
-  "-lm",
-]);
+const objectBySource = new Map(
+  harnessSources.map((source, index) => [source, harnessObjects[index]]),
+);
+const runtimeSources = [
+  "gnubg_adapter.c",
+  "gnubg_wasm_abi.c",
+  "gnubg_wasm_marshal.c",
+  "gnubg_wasm_bridge.c",
+];
+const executableSpecifications = [
+  {
+    file: path.join(buildRoot, "gnubg-native-golden"),
+    sources: [
+      ...runtimeSources,
+      "gnubg_wasm_test_support.c",
+      "gnubg_golden_test.c",
+    ],
+  },
+  {
+    file: path.join(buildRoot, "gnubg-wasm-public-smoke"),
+    sources: [...runtimeSources, "gnubg_wasm_public_smoke_test.c"],
+  },
+];
+for (const specification of executableSpecifications) {
+  run(compiler, [
+    ...effectiveLinkFlags,
+    "-o",
+    specification.file,
+    ...specification.sources.map((source) => objectBySource.get(source)),
+    ...coreObjects.map((object) => path.join(buildRoot, object)),
+    path.join(buildRoot, "lib/.libs/libevent.a"),
+    ...glibLibraries,
+    "-lm",
+  ]);
+}
 
 writeFileSync(
   path.join(buildRoot, "build-info.json"),
@@ -197,8 +291,15 @@ writeFileSync(
       archiveSha256: sourceLock.archive.sha256,
       sourcePatches: preparedSource.patches,
       buildKind: "clean authenticated-source native test build; not bit-for-bit reproducible",
+      buildMode: sanitized ? "asan-ubsan" : "release-test",
       configureFlags,
       coreObjects,
+      harnessSources,
+      harnessObjects: harnessObjects.map((object) => path.basename(object)),
+      executables: executableSpecifications.map((specification) => ({
+        file: path.basename(specification.file),
+        sources: specification.sources,
+      })),
       host: {
         platform: process.platform,
         architecture: process.arch,
@@ -222,6 +323,7 @@ writeFileSync(
         ),
       },
       adapterCompileFlags: commonCompileFlags,
+      linkFlags: effectiveLinkFlags,
       glib: {
         cflags: glibCflags,
         libraries: glibLibraries,
@@ -233,4 +335,10 @@ writeFileSync(
   )}\n`,
 );
 
-console.log(`Built headless GNUbg native harness at ${executable}`);
+console.log(
+  `Built headless GNUbg native harnesses (${
+    sanitized ? "ASan/UBSan" : "release-test"
+  }): ${executableSpecifications
+    .map((specification) => specification.file)
+    .join(", ")}`,
+);

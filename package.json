@@ -29,7 +29,9 @@
     "test:gnubg-native": "node scripts/test-gnubg-native.mjs",
     "test:wasm-abi-layout": "node scripts/test-wasm-abi-layout.mjs",
     "build:wasm-abi": "node scripts/build-wasm-abi.mjs",
-    "test:wasm-abi": "npm run build:wasm-abi && node scripts/test-wasm-abi.mjs"
+    "test:wasm-abi": "npm run build:wasm-abi && node scripts/test-wasm-abi.mjs",
+    "test:gnubg-native:sanitized": "node scripts/test-gnubg-native.mjs --sanitized",
+    "test:wasm-abi-layout:sanitized": "node scripts/test-wasm-abi-layout.mjs --sanitized"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
