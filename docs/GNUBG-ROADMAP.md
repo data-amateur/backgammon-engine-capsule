@@ -18,15 +18,16 @@ integration.
 4. **Completed for the native checkpoint.** Exclude desktop UI, audio,
    database, Python, networking, and unrelated command features. The native
    link boundary does not expose GNUbg's arbitrary command parser.
-5. **In progress.** The typed C API now covers one-shot initialization,
-   candidate evaluation, five settings, cache reset, and disposal. Add typed
-   cube analysis before beginning the WASM bridge.
+5. **Completed for the native checkpoint.** The typed C API covers one-shot
+   initialization, candidate evaluation, five settings, cache reset, disposal,
+   and cube offer/response analysis over an authoritative supplied action list.
 6. **In progress.** The native adapter translates absolute BEP-style positions,
    independently replays every supplied legal turn, and matches it to GNUbg's
    generated legal set. The future TypeScript/WASM bridge must additionally
    compare optional `resultingBoard` values; current host turns omit that
    field.
-7. Pin Emscripten and start with single-threaded modularized output inside the
+7. Freeze the wasm32-facing ABI with fixed-width fields and layout/offset tests,
+   pin Emscripten, and start with single-threaded modularized output inside the
    existing Worker. Do not require SharedArrayBuffer/pthreads for v1.
 8. Fetch WASM/networks through explicit CORS-enabled URLs; do not resolve them
    relative to the Blob Worker URL.

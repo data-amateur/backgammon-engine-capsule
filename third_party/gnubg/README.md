@@ -54,9 +54,18 @@ proprietary Backgammon Light repository or deployment.
 ## Native checkpoint
 
 Run `npm run test:gnubg-native` from the capsule repository root. It verifies
-the archive again, replaces the ignored extraction with a fresh copy, builds a
-headless evaluator harness, and runs mapping, legality, and scoring fixtures.
-See `docs/GNUBG-NATIVE.md` for the exact source boundary and prerequisites.
+the archive again, replaces the ignored extraction with a fresh copy, applies
+the ordered public patches, records each patch path and SHA-256 hash, builds a
+headless evaluator harness, and runs mapping, legality, scoring, and cube
+goldens. See `docs/GNUBG-NATIVE.md` for the exact source boundary and
+prerequisites.
+
+The current patch set contains:
+
+- `0001-race-bearoff-without-two-sided-db.patch`, which makes GNUbg's race
+  backgammon correction use the initialized one-sided heuristic when the
+  optional two-sided bearoff database is not shipped. This avoids a null
+  bearoff context without adding a large database payload.
 
 The native adapter and executable link GNUbg and are GPL-3.0-or-later. The
 default browser mock remains separate and does not include these generated

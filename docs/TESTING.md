@@ -24,11 +24,17 @@ Before a mock release, also run the manual private-application test described
 in the README. Verify a second game in the same match reuses the loaded capsule
 and does not show another preload/fallback cycle.
 
-The native GNUbg checkpoint now covers authenticated clean rebuilds, both-color
-board mapping, bar entry and hits, an illegal oversize bear-off, candidate
-legality, money and match scoring, cube ownership, Crawford/one-point metadata
-guards, the two-ply preset, cache reset, and disposal. Preserve all mock tests.
-Before the WASM bridge, add exact bear-off, higher-die/partial-turn, doubles,
-Jacoby, post-Crawford, and typed cube-decision fixtures. Then run the same
-golden positions against native and WASM and add asset failures, Worker
-termination/recreation, and cold/warm startup measurements.
+The native GNUbg checkpoint now covers authenticated clean rebuilds with
+recorded patches, both-color board mapping, bar entry and hits, an illegal
+oversize bear-off, candidate legality, money and match scoring, cube ownership,
+Crawford/one-point metadata guards, the two-ply preset, cache reset, and
+disposal. Typed cube goldens pin double/take, double/pass, no-double, too-good,
+Jacoby, beaver and omitted-beaver fallback, arbitrary legal subsets and array
+indices, owned redoubles, color reflection, post-Crawford response, and the
+match/money cube ceilings. Native execution treats GLib criticals as fatal, and
+a race fixture exercises the no-two-sided-database compatibility patch.
+
+Preserve all mock tests. Before the WASM bridge ships, add remaining checker
+higher-die/partial-turn and doubles fixtures, run the same native goldens against
+wasm32, and add asset failures, Worker termination/recreation, and cold/warm
+startup and decision measurements.

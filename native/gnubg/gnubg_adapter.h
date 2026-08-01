@@ -14,6 +14,7 @@ extern "C" {
 #define BGC_CHECKERS_PER_PLAYER 15
 #define BGC_MAX_TURN_STEPS 4
 #define BGC_MAX_CANDIDATES 4096
+#define BGC_MAX_CUBE_ACTIONS 6
 #define BGC_MAX_CUBE_VALUE 4096
 #define BGC_POSITION_ID_LENGTH 14
 #define BGC_ERROR_MESSAGE_LENGTH 256
@@ -46,6 +47,13 @@ typedef enum {
 } bgc_match_mode;
 
 typedef enum {
+    BGC_CUBE_STATE_AVAILABLE = 0,
+    BGC_CUBE_STATE_OFFERED,
+    BGC_CUBE_STATE_ACCEPTED,
+    BGC_CUBE_STATE_DECLINED
+} bgc_cube_state;
+
+typedef enum {
     BGC_CRAWFORD_NONE = 0,
     BGC_CRAWFORD_GAME,
     BGC_CRAWFORD_POST
@@ -63,10 +71,29 @@ typedef enum {
     BGC_STRENGTH_MAXIMUM
 } bgc_strength;
 
+typedef enum {
+    BGC_CUBE_PHASE_CONSIDER_OFFER = 0,
+    BGC_CUBE_PHASE_RESPOND_TO_OFFER
+} bgc_cube_decision_phase;
+
+typedef enum {
+    BGC_CUBE_ACTION_DOUBLE = 0,
+    BGC_CUBE_ACTION_NO_DOUBLE,
+    BGC_CUBE_ACTION_TOO_GOOD,
+    BGC_CUBE_ACTION_TAKE,
+    BGC_CUBE_ACTION_PASS,
+    BGC_CUBE_ACTION_BEAVER
+} bgc_cube_action;
+
 typedef struct {
     uint8_t white;
     uint8_t black;
 } bgc_checker_counts;
+
+typedef struct {
+    uint32_t white;
+    uint32_t black;
+} bgc_match_score;
 
 typedef struct {
     bgc_checker_counts points[BGC_POINT_COUNT];
@@ -77,12 +104,14 @@ typedef struct {
 typedef struct {
     int value;
     int owner; /* -1 for centered, otherwise a bgc_player value. */
+    bgc_cube_state state;
+    int offered_by; /* -1 for null, otherwise a bgc_player value. */
 } bgc_cube;
 
 typedef struct {
     bgc_match_mode mode;
     int length; /* Zero for money play. */
-    bgc_checker_counts score;
+    bgc_match_score score;
     bgc_crawford_state crawford;
 } bgc_match;
 
@@ -130,6 +159,20 @@ typedef struct {
 } bgc_candidate_score;
 
 typedef struct {
+    bgc_cube_action decision;
+    uint32_t selected_index; /* Index into caller-supplied legal_actions. */
+    int evaluated;
+    /* All equities use GNUbg's player_on_roll/offerer perspective. */
+    /* Equity of decision; valid only when evaluated is nonzero. */
+    float selected_action_equity;
+    /* GNUbg's unrestricted pre-offer optimum, not a subset-constrained result. */
+    float preoffer_optimal_equity;
+    float no_double_equity;
+    float double_take_equity;
+    float double_pass_equity;
+} bgc_cube_analysis;
+
+typedef struct {
     char message[BGC_ERROR_MESSAGE_LENGTH];
 } bgc_error;
 
@@ -157,6 +200,18 @@ bgc_status bgc_engine_choose_turn(
     bgc_candidate_score *scores_out,
     size_t scores_capacity,
     size_t *best_index_out,
+    bgc_error *error
+);
+
+bgc_status bgc_engine_decide_cube(
+    bgc_engine *engine,
+    const bgc_position *position,
+    bgc_cube_decision_phase phase,
+    bgc_player engine_player,
+    const bgc_cube_action *legal_actions,
+    size_t legal_action_count,
+    const bgc_settings *settings,
+    bgc_cube_analysis *analysis_out,
     bgc_error *error
 );
 

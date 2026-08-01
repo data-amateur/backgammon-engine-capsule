@@ -14,10 +14,11 @@ const sourceLock = JSON.parse(
   ),
 );
 
-function run(command, args) {
+function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repositoryRoot,
     encoding: "utf8",
+    env: options.env ?? process.env,
     stdio: "inherit",
   });
   if (result.error) {
@@ -29,10 +30,16 @@ function run(command, args) {
 }
 
 run(process.execPath, [path.join(repositoryRoot, "scripts/build-gnubg-native.mjs")]);
-run(path.join(repositoryRoot, "build/gnubg/native/gnubg-native-golden"), [
-  path.join(
-    repositoryRoot,
-    "third_party/gnubg/work",
-    `gnubg-${sourceLock.version}`,
-  ),
-]);
+run(
+  path.join(repositoryRoot, "build/gnubg/native/gnubg-native-golden"),
+  [
+    path.join(
+      repositoryRoot,
+      "third_party/gnubg/work",
+      `gnubg-${sourceLock.version}`,
+    ),
+  ],
+  {
+    env: { ...process.env, G_DEBUG: "fatal-criticals" },
+  },
+);

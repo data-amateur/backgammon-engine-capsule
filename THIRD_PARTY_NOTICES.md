@@ -13,10 +13,13 @@ Run `npm audit` and review the lockfile whenever these tools are updated.
 ## GNU Backgammon 1.08.003
 
 The repository preserves an unmodified, signed GNU Backgammon source release
-under `third_party/gnubg/upstream/` and uses it to build a minimal native
-adapter and golden-test executable. GNUbg's program code and the linked adapter
-are licensed under `GPL-3.0-or-later`; the complete GPL v3 text is available at
-`LICENSES/GPL-3.0-or-later.txt` and inside the signed source archive.
+under `third_party/gnubg/upstream/`, then applies the ordered capsule-authored
+compatibility patches under `third_party/gnubg/patches/` to build a minimal
+native adapter and golden-test executable. GNUbg's program code, those patches,
+and the linked adapter and tests are licensed under `GPL-3.0-or-later`; the
+complete GPL v3 text is available at `LICENSES/GPL-3.0-or-later.txt` and inside
+the signed source archive. Patch purpose, order, and authorship are recorded in
+`third_party/gnubg/patches/README.md`.
 
 Upstream project: <https://www.gnu.org/software/gnubg/>
 

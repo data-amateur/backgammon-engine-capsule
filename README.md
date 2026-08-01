@@ -24,7 +24,7 @@ and licensing details.
 - npm
 - `gpgv`, used to authenticate the pinned GNUbg upstream archive.
 - For the native GNUbg checkpoint: a C11 compiler, GNU Make, `tar`,
-  `pkg-config`, and GLib 2.0 development headers.
+  `patch`, `pkg-config`, and GLib 2.0 development headers.
 - A browser installed through Playwright for the browser suite.
 
 ## Run locally
@@ -126,12 +126,18 @@ independently matches supplied turns against GNUbg's complete legal set, and
 scores candidates through a typed C API. It remains deliberately absent from
 the browser runtime.
 
-The next increment adds typed cube analysis and completes native BEP fixture
-coverage. After that, the same public GPL-side boundary can be compiled to
-single-threaded modularized WASM inside the compute Worker. All GNUbg source,
-patches, build scripts, WASM, networks, license material, and exact
-corresponding-source archives must remain in this public capsule project—never
-in the proprietary application.
+The native boundary now also makes typed offer/response decisions, returns an
+index into the server-supplied legal-action array, and covers double/take,
+double/pass, no-double, too-good, Jacoby, beaver, post-Crawford, reflection,
+and maximum-cube safety cases with pinned goldens. Source preparation applies
+and records the public GPL-side compatibility patches after authenticating the
+unchanged signed archive.
+
+The next increment freezes and tests the wasm32 ABI, pins Emscripten, and
+compiles this same public GPL-side boundary to single-threaded modularized WASM
+inside the compute Worker. All GNUbg source, patches, build scripts, WASM,
+networks, license material, and exact corresponding-source archives must remain
+in this public capsule project—never in the proprietary application.
 
 See [the native harness guide](docs/GNUBG-NATIVE.md) and
 [the roadmap](docs/GNUBG-ROADMAP.md) before continuing that work.

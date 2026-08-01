@@ -91,6 +91,9 @@ const inheritedEnvironment = Object.fromEntries(
 );
 
 run(process.execPath, [path.join(repositoryRoot, "scripts/prepare-gnubg-source.mjs")]);
+const preparedSource = JSON.parse(
+  readFileSync(path.join(repositoryRoot, "third_party/gnubg/work/prepared-source.json"), "utf8"),
+);
 
 rmSync(buildRoot, { recursive: true, force: true });
 mkdirSync(buildRoot, { recursive: true });
@@ -192,6 +195,7 @@ writeFileSync(
     {
       gnubgVersion: sourceLock.version,
       archiveSha256: sourceLock.archive.sha256,
+      sourcePatches: preparedSource.patches,
       buildKind: "clean authenticated-source native test build; not bit-for-bit reproducible",
       configureFlags,
       coreObjects,

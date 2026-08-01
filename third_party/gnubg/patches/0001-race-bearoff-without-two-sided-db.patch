@@ -1,0 +1,10 @@
+--- a/eval.c
++++ b/eval.c
+@@ -2005,5 +2005,6 @@ raceBGprob(const TanBoard anBoard, int side, const bgvariation bgv)
+-            if (PositionBearoff(dummy[0], 6, 15) > 923 || PositionBearoff(dummy[1], 6, 15) > 923) {
++            if (!pbc2 || PositionBearoff(dummy[0], 6, 15) > 923 ||
++                PositionBearoff(dummy[1], 6, 15) > 923) {
+                 EvalBearoff1((ConstTanBoard) dummy, ar, bgv, NULL);
+             } else {
+                 EvalBearoff2((ConstTanBoard) dummy, ar, bgv, NULL);
+             }

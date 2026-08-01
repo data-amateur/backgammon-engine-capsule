@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -22,10 +23,16 @@ const sourceLock = JSON.parse(
 const archivePath = path.join(repositoryRoot, sourceLock.archive.path);
 const workRoot = path.join(repositoryRoot, "third_party/gnubg/work");
 const sourceRoot = path.join(workRoot, `gnubg-${sourceLock.version}`);
+const sourcePatches = [
+  path.join(
+    repositoryRoot,
+    "third_party/gnubg/patches/0001-race-bearoff-without-two-sided-db.patch",
+  ),
+];
 
-function run(command, args) {
+function run(command, args, cwd = repositoryRoot) {
   const result = spawnSync(command, args, {
-    cwd: repositoryRoot,
+    cwd,
     encoding: "utf8",
     stdio: "inherit",
   });
@@ -50,11 +57,20 @@ for (const requiredPath of [
   path.join(sourceRoot, "eval.c"),
   path.join(sourceRoot, "gnubg.weights"),
   path.join(sourceRoot, "met/Kazaross-XG2.xml"),
+  ...sourcePatches,
 ]) {
   if (!existsSync(requiredPath)) {
-    throw new Error(`Extracted GNUbg source is missing ${requiredPath}`);
+    throw new Error(`GNUbg source input is missing ${requiredPath}`);
   }
 }
+
+const appliedPatches = sourcePatches.map((patchPath) => {
+  run("patch", ["--batch", "--forward", "-p1", "--input", patchPath], sourceRoot);
+  return {
+    path: path.relative(repositoryRoot, patchPath),
+    sha256: createHash("sha256").update(readFileSync(patchPath)).digest("hex"),
+  };
+});
 
 writeFileSync(
   path.join(workRoot, "prepared-source.json"),
@@ -63,6 +79,7 @@ writeFileSync(
       version: sourceLock.version,
       archiveSha256: sourceLock.archive.sha256,
       sourceDirectory: path.relative(repositoryRoot, sourceRoot),
+      patches: appliedPatches,
     },
     null,
     2,

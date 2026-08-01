@@ -19,6 +19,7 @@
 
 #define BGC_MAX_MATCH_LENGTH 64
 #define BGC_MAX_MATCH_CUBE 64
+#define BGC_MAX_BEAVER_CUBE (BGC_MAX_CUBE_VALUE / 4)
 
 struct bgc_engine {
     int ready;
@@ -128,14 +129,20 @@ map_board(const bgc_position *position, TanBoard board, bgc_error *error)
 }
 
 static bgc_status
-validate_position_metadata(const bgc_position *position, bgc_error *error)
+validate_position_metadata(const bgc_position *position,
+                           const int checker_play,
+                           bgc_error *error)
 {
     const int cube_value = position->cube.value;
 
-    if (position->dice[0] < 1 || position->dice[0] > 6 ||
-        position->dice[1] < 1 || position->dice[1] > 6)
+    if (checker_play &&
+        (position->dice[0] < 1 || position->dice[0] > 6 ||
+         position->dice[1] < 1 || position->dice[1] > 6))
         return fail(error, BGC_STATUS_INVALID_POSITION,
                     "checker-play dice must be between 1 and 6");
+    if (!checker_play && (position->dice[0] != 0 || position->dice[1] != 0))
+        return fail(error, BGC_STATUS_INVALID_POSITION,
+                    "cube decisions require an empty dice tuple");
 
     if (cube_value < 1 || cube_value > BGC_MAX_CUBE_VALUE ||
         (cube_value & (cube_value - 1)) != 0)
@@ -144,6 +151,28 @@ validate_position_metadata(const bgc_position *position, bgc_error *error)
                     BGC_MAX_CUBE_VALUE);
     if (position->cube.owner < -1 || position->cube.owner > 1)
         return fail(error, BGC_STATUS_INVALID_POSITION, "cube owner is invalid");
+    if (position->cube.state < BGC_CUBE_STATE_AVAILABLE ||
+        position->cube.state > BGC_CUBE_STATE_DECLINED)
+        return fail(error, BGC_STATUS_INVALID_POSITION, "cube state is invalid");
+    if (checker_play &&
+        position->cube.state != BGC_CUBE_STATE_AVAILABLE &&
+        position->cube.state != BGC_CUBE_STATE_ACCEPTED)
+        return fail(error, BGC_STATUS_INVALID_POSITION,
+                    "checker play requires an available or accepted cube");
+    if (position->cube.state == BGC_CUBE_STATE_OFFERED) {
+        if (!is_player((bgc_player) position->cube.offered_by) ||
+            (position->cube.owner != -1 &&
+             position->cube.owner != position->cube.offered_by))
+            return fail(error, BGC_STATUS_INVALID_POSITION,
+                        "offered cube has invalid offerer or owner");
+    } else if (position->cube.state == BGC_CUBE_STATE_DECLINED) {
+        if (!is_player((bgc_player) position->cube.offered_by))
+            return fail(error, BGC_STATUS_INVALID_POSITION,
+                        "declined cube must retain its offerer");
+    } else if (position->cube.offered_by != -1) {
+        return fail(error, BGC_STATUS_INVALID_POSITION,
+                    "available or accepted cube cannot retain an offerer");
+    }
 
     if ((position->rules.jacoby != 0 && position->rules.jacoby != 1) ||
         (position->rules.beavers != 0 && position->rules.beavers != 1) ||
@@ -162,8 +191,8 @@ validate_position_metadata(const bgc_position *position, bgc_error *error)
     } else if (position->match.mode == BGC_MATCH_MODE_MATCH) {
         if (position->match.length < 1 ||
             position->match.length > BGC_MAX_MATCH_LENGTH ||
-            position->match.score.white >= position->match.length ||
-            position->match.score.black >= position->match.length)
+            position->match.score.white >= (uint32_t) position->match.length ||
+            position->match.score.black >= (uint32_t) position->match.length)
             return fail(error, BGC_STATUS_INVALID_POSITION,
                         "match length must be 1..%d and both scores must be lower",
                         BGC_MAX_MATCH_LENGTH);
@@ -174,8 +203,10 @@ validate_position_metadata(const bgc_position *position, bgc_error *error)
                         "Crawford and one-point games require a centered cube at 1");
         if (position->match.crawford != BGC_CRAWFORD_NONE &&
             (position->match.length <= 1 ||
-             (position->match.score.white != position->match.length - 1 &&
-              position->match.score.black != position->match.length - 1)))
+             (position->match.score.white !=
+                  (uint32_t) (position->match.length - 1) &&
+              position->match.score.black !=
+                  (uint32_t) (position->match.length - 1))))
             return fail(error, BGC_STATUS_INVALID_POSITION,
                         "Crawford and post-Crawford states require a one-away score");
         if (cube_value > BGC_MAX_MATCH_CUBE)
@@ -204,8 +235,8 @@ static bgc_status
 set_cube_info(const bgc_position *position, cubeinfo *cube, bgc_error *error)
 {
     const int score[2] = {
-        position->match.score.white,
-        position->match.score.black
+        (int) position->match.score.white,
+        (int) position->match.score.black
     };
     const int match_length = position->match.mode == BGC_MATCH_MODE_MATCH
         ? position->match.length : 0;
@@ -219,7 +250,8 @@ set_cube_info(const bgc_position *position, cubeinfo *cube, bgc_error *error)
                     score,
                     crawford,
                     !!position->rules.jacoby,
-                    !!position->rules.beavers,
+                    !!position->rules.beavers &&
+                    position->cube.value <= BGC_MAX_BEAVER_CUBE,
                     VARIATION_STANDARD) != 0)
         return fail(error, BGC_STATUS_INVALID_POSITION,
                     "GNUbg rejected the match or cube state");
@@ -400,6 +432,264 @@ evaluation_context(const bgc_settings *settings,
 }
 
 static int
+is_cube_action(const bgc_cube_action action)
+{
+    return action >= BGC_CUBE_ACTION_DOUBLE &&
+        action <= BGC_CUBE_ACTION_BEAVER;
+}
+
+static bgc_status
+validate_cube_request(const bgc_position *position,
+                      const bgc_cube_decision_phase phase,
+                      const bgc_player engine_player,
+                      const bgc_cube_action *actions,
+                      const size_t action_count,
+                      bgc_error *error)
+{
+    int seen[BGC_MAX_CUBE_ACTIONS] = { 0 };
+    size_t index;
+
+    if (!is_player(engine_player))
+        return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                    "engine_player is invalid");
+    if (phase != BGC_CUBE_PHASE_CONSIDER_OFFER &&
+        phase != BGC_CUBE_PHASE_RESPOND_TO_OFFER)
+        return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                    "cube decision phase is invalid");
+    if (!actions || action_count < 1 || action_count > BGC_MAX_CUBE_ACTIONS)
+        return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                    "one to %d legal cube actions are required",
+                    BGC_MAX_CUBE_ACTIONS);
+
+    for (index = 0; index < action_count; index++) {
+        const bgc_cube_action action = actions[index];
+        if (!is_cube_action(action))
+            return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                        "legal cube action %zu is invalid", index);
+        if (seen[action])
+            return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                        "legal cube actions must be unique");
+        seen[action] = TRUE;
+    }
+
+    if (position->board.borne_off.white == BGC_CHECKERS_PER_PLAYER ||
+        position->board.borne_off.black == BGC_CHECKERS_PER_PLAYER)
+        return fail(error, BGC_STATUS_INVALID_POSITION,
+                    "cube decisions are not valid after the game is over");
+
+    if (phase == BGC_CUBE_PHASE_CONSIDER_OFFER) {
+        if (engine_player != position->player_on_roll)
+            return fail(error, BGC_STATUS_INVALID_POSITION,
+                        "offer decisions belong to the player on roll");
+        if (position->cube.state != BGC_CUBE_STATE_AVAILABLE &&
+            position->cube.state != BGC_CUBE_STATE_ACCEPTED)
+            return fail(error, BGC_STATUS_INVALID_POSITION,
+                        "offer decision requires an available or accepted cube");
+        if (seen[BGC_CUBE_ACTION_TAKE] || seen[BGC_CUBE_ACTION_PASS] ||
+            seen[BGC_CUBE_ACTION_BEAVER])
+            return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                        "offer decisions contain a response action");
+    } else {
+        if (position->cube.state != BGC_CUBE_STATE_OFFERED ||
+            position->cube.offered_by != (int) position->player_on_roll)
+            return fail(error, BGC_STATUS_INVALID_POSITION,
+                        "response requires a cube offered by player_on_roll");
+        if (position->match.mode == BGC_MATCH_MODE_MATCH &&
+            (position->match.length == 1 ||
+             position->match.crawford == BGC_CRAWFORD_GAME))
+            return fail(error, BGC_STATUS_INVALID_POSITION,
+                        "a cube cannot be offered in a Crawford or one-point game");
+        if ((int) engine_player == position->cube.offered_by)
+            return fail(error, BGC_STATUS_INVALID_POSITION,
+                        "the cube responder cannot be the offerer");
+        if (seen[BGC_CUBE_ACTION_DOUBLE] ||
+            seen[BGC_CUBE_ACTION_NO_DOUBLE] ||
+            seen[BGC_CUBE_ACTION_TOO_GOOD])
+            return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                        "response decisions contain an offer action");
+        if (seen[BGC_CUBE_ACTION_BEAVER] &&
+            (position->match.mode != BGC_MATCH_MODE_MONEY ||
+             !position->rules.beavers))
+            return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                        "beaver is legal only in money play with beavers enabled");
+        if (seen[BGC_CUBE_ACTION_BEAVER] &&
+            position->cube.value > BGC_MAX_BEAVER_CUBE)
+            return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                        "beaver is legal only through a pre-offer cube of %d",
+                        BGC_MAX_BEAVER_CUBE);
+    }
+
+    return BGC_STATUS_OK;
+}
+
+static int
+offer_recommendation(const cubedecision decision)
+{
+    switch (decision) {
+    case DOUBLE_TAKE:
+    case DOUBLE_PASS:
+    case DOUBLE_BEAVER:
+    case REDOUBLE_TAKE:
+    case REDOUBLE_PASS:
+        return BGC_CUBE_ACTION_DOUBLE;
+    case OPTIONAL_DOUBLE_TAKE:
+    case OPTIONAL_REDOUBLE_TAKE:
+    case OPTIONAL_DOUBLE_BEAVER:
+    case OPTIONAL_DOUBLE_PASS:
+    case OPTIONAL_REDOUBLE_PASS:
+        /* Optional doubles are deterministically played on. */
+        return BGC_CUBE_ACTION_NO_DOUBLE;
+    case TOOGOOD_TAKE:
+    case TOOGOOD_PASS:
+    case TOOGOODRE_TAKE:
+    case TOOGOODRE_PASS:
+        return BGC_CUBE_ACTION_TOO_GOOD;
+    case NODOUBLE_TAKE:
+    case NODOUBLE_BEAVER:
+    case NO_REDOUBLE_TAKE:
+    case NO_REDOUBLE_BEAVER:
+    case NODOUBLE_DEADCUBE:
+    case NO_REDOUBLE_DEADCUBE:
+    case NOT_AVAILABLE:
+        return BGC_CUBE_ACTION_NO_DOUBLE;
+    default:
+        return -1;
+    }
+}
+
+static int
+response_recommendation(const cubedecision decision)
+{
+    switch (decision) {
+    case DOUBLE_TAKE:
+    case NODOUBLE_TAKE:
+    case TOOGOOD_TAKE:
+    case REDOUBLE_TAKE:
+    case NO_REDOUBLE_TAKE:
+    case TOOGOODRE_TAKE:
+    case OPTIONAL_DOUBLE_TAKE:
+    case OPTIONAL_REDOUBLE_TAKE:
+        return BGC_CUBE_ACTION_TAKE;
+    case DOUBLE_PASS:
+    case TOOGOOD_PASS:
+    case REDOUBLE_PASS:
+    case TOOGOODRE_PASS:
+    case OPTIONAL_DOUBLE_PASS:
+    case OPTIONAL_REDOUBLE_PASS:
+        return BGC_CUBE_ACTION_PASS;
+    case DOUBLE_BEAVER:
+    case NODOUBLE_BEAVER:
+    case NO_REDOUBLE_BEAVER:
+    case OPTIONAL_DOUBLE_BEAVER:
+        return BGC_CUBE_ACTION_BEAVER;
+    case NODOUBLE_DEADCUBE:
+    case NO_REDOUBLE_DEADCUBE:
+        return BGC_CUBE_ACTION_TAKE;
+    case NOT_AVAILABLE:
+    default:
+        return -1;
+    }
+}
+
+static size_t
+find_cube_action(const bgc_cube_action action,
+                 const bgc_cube_action *actions,
+                 const size_t action_count)
+{
+    size_t index;
+
+    for (index = 0; index < action_count; index++) {
+        if (actions[index] == action)
+            return index;
+    }
+    return action_count;
+}
+
+static float
+cube_action_equity(const bgc_cube_decision_phase phase,
+                   const bgc_cube_action action,
+                   const float equities[NUM_CUBEFUL_OUTPUTS],
+                   const int beaver_allowed)
+{
+    if (phase == BGC_CUBE_PHASE_CONSIDER_OFFER) {
+        if (action == BGC_CUBE_ACTION_DOUBLE) {
+            float equity = fminf(equities[OUTPUT_TAKE],
+                                 equities[OUTPUT_DROP]);
+            if (beaver_allowed)
+                equity = fminf(equity, 2.0f * equities[OUTPUT_TAKE]);
+            return equity;
+        }
+        return equities[OUTPUT_NODOUBLE];
+    }
+
+    switch (action) {
+    case BGC_CUBE_ACTION_TAKE:
+        return equities[OUTPUT_TAKE];
+    case BGC_CUBE_ACTION_PASS:
+        return equities[OUTPUT_DROP];
+    case BGC_CUBE_ACTION_BEAVER:
+        return 2.0f * equities[OUTPUT_TAKE];
+    default:
+        return INFINITY;
+    }
+}
+
+static size_t
+select_cube_action(const bgc_cube_decision_phase phase,
+                   const int preferred,
+                   const bgc_cube_action *actions,
+                   const size_t action_count,
+                   const float equities[NUM_CUBEFUL_OUTPUTS],
+                   const int evaluated,
+                   const int beaver_allowed)
+{
+    size_t best_index;
+    size_t index;
+
+    if (preferred >= BGC_CUBE_ACTION_DOUBLE &&
+        preferred <= BGC_CUBE_ACTION_BEAVER) {
+        const size_t preferred_index = find_cube_action(
+            (bgc_cube_action) preferred, actions, action_count);
+        if (preferred_index < action_count)
+            return preferred_index;
+    }
+
+    if (!evaluated) {
+        /*
+         * A dead or unavailable cube is equivalent to playing on. Preserve a
+         * too-good token when it is the only supplied play-on spelling, but
+         * never manufacture an unavailable double.
+         */
+        if (phase == BGC_CUBE_PHASE_CONSIDER_OFFER) {
+            const size_t no_double = find_cube_action(
+                BGC_CUBE_ACTION_NO_DOUBLE, actions, action_count);
+            if (no_double < action_count)
+                return no_double;
+            return find_cube_action(
+                BGC_CUBE_ACTION_TOO_GOOD, actions, action_count);
+        }
+        return action_count;
+    }
+
+    best_index = 0;
+    for (index = 1; index < action_count; index++) {
+        const float candidate = cube_action_equity(
+            phase, actions[index], equities, beaver_allowed);
+        const float best = cube_action_equity(
+            phase, actions[best_index], equities, beaver_allowed);
+
+        /*
+         * GNUbg equities use the offerer's perspective. The offerer maximizes;
+         * the responder minimizes. Equal scores retain server array order.
+         */
+        if ((phase == BGC_CUBE_PHASE_CONSIDER_OFFER && candidate > best) ||
+            (phase == BGC_CUBE_PHASE_RESPOND_TO_OFFER && candidate < best))
+            best_index = index;
+    }
+    return best_index;
+}
+
+static int
 file_is_readable(const char *path)
 {
     FILE *file;
@@ -442,6 +732,20 @@ bgc_engine_create(const char *weights_path,
 
     InitMatchEquity(match_equity_path);
     EvalInitialise((char *) weights_path, NULL, TRUE, NULL);
+
+    /*
+     * Optional bearoff database files are intentionally not bundled. GNUbg's
+     * evaluator still needs its built-in one-sided heuristic context for race
+     * and bearoff positions.
+     */
+    pbc1 = BearoffInit(NULL, BO_HEURISTIC, NULL);
+    if (!pbc1) {
+        EvalShutdown();
+        free(engine);
+        runtime_state = BGC_RUNTIME_FINISHED;
+        return fail(error, BGC_STATUS_INITIALIZATION_FAILED,
+                    "could not initialize GNUbg's heuristic bearoff evaluator");
+    }
     MT_InitThreads();
 
     engine->ready = 1;
@@ -485,7 +789,7 @@ bgc_engine_choose_turn(bgc_engine *engine,
         return fail(error, BGC_STATUS_INVALID_ARGUMENT,
                     "score output capacity is smaller than candidate count");
 
-    status = validate_position_metadata(position, error);
+    status = validate_position_metadata(position, TRUE, error);
     if (status != BGC_STATUS_OK)
         return status;
     status = map_board(position, board, error);
@@ -558,6 +862,130 @@ bgc_engine_choose_turn(bgc_engine *engine,
 
     free(candidate_keys);
     *best_index_out = best_index;
+    return BGC_STATUS_OK;
+}
+
+bgc_status
+bgc_engine_decide_cube(bgc_engine *engine,
+                       const bgc_position *position,
+                       const bgc_cube_decision_phase phase,
+                       const bgc_player engine_player,
+                       const bgc_cube_action *legal_actions,
+                       const size_t legal_action_count,
+                       const bgc_settings *settings,
+                       bgc_cube_analysis *analysis_out,
+                       bgc_error *error)
+{
+    TanBoard board;
+    cubeinfo cube;
+    evalcontext context;
+    float outputs[2][NUM_ROLLOUT_OUTPUTS] = { { 0 } };
+    float equities[NUM_CUBEFUL_OUTPUTS] = { 0 };
+    cubedecision decision;
+    int preferred;
+    int cube_available;
+    int beaver_allowed;
+    size_t selected_index;
+    bgc_status status;
+
+    clear_error(error);
+    if (!engine || !engine->ready || runtime_state != BGC_RUNTIME_ACTIVE)
+        return fail(error, BGC_STATUS_NOT_READY, "GNUbg engine is not ready");
+    if (!position || !analysis_out)
+        return fail(error, BGC_STATUS_INVALID_ARGUMENT,
+                    "position and cube analysis output are required");
+    memset(analysis_out, 0, sizeof(*analysis_out));
+
+    status = validate_position_metadata(position, FALSE, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    status = validate_cube_request(position, phase, engine_player,
+                                   legal_actions, legal_action_count, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    status = map_board(position, board, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    status = set_cube_info(position, &cube, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    status = evaluation_context(settings, &context, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+
+    beaver_allowed = position->match.mode == BGC_MATCH_MODE_MONEY &&
+        position->rules.beavers &&
+        position->cube.value <= BGC_MAX_BEAVER_CUBE;
+
+    if (phase == BGC_CUBE_PHASE_CONSIDER_OFFER) {
+        cube_available = GetDPEq(NULL, NULL, &cube) &&
+            !(position->match.mode == BGC_MATCH_MODE_MONEY &&
+              position->cube.value >= BGC_MAX_CUBE_VALUE);
+        if (!cube_available) {
+            selected_index = select_cube_action(
+                phase, BGC_CUBE_ACTION_NO_DOUBLE, legal_actions,
+                legal_action_count, equities, FALSE, beaver_allowed);
+            if (selected_index >= legal_action_count)
+                return fail(error, BGC_STATUS_INVALID_POSITION,
+                            "legal actions contradict an unavailable cube");
+            analysis_out->selected_index = (uint32_t) selected_index;
+            analysis_out->decision = legal_actions[selected_index];
+            return BGC_STATUS_OK;
+        }
+    } else if ((position->match.mode == BGC_MATCH_MODE_MATCH &&
+                position->cube.value >= BGC_MAX_MATCH_CUBE) ||
+               (position->match.mode == BGC_MATCH_MODE_MONEY &&
+                position->cube.value >= BGC_MAX_CUBE_VALUE)) {
+        /* GeneralCubeDecisionE internally doubles the pre-offer cube. */
+        return fail(error, BGC_STATUS_UNSUPPORTED,
+                    "offered cube exceeds the safe GNUbg/BEP analysis bound");
+    }
+
+    if (legal_action_count == 1) {
+        analysis_out->decision = legal_actions[0];
+        analysis_out->selected_index = 0;
+        return BGC_STATUS_OK;
+    }
+
+    fInterrupt = FALSE;
+    if (GeneralCubeDecisionE(outputs, (ConstTanBoard) board,
+                             &cube, &context, NULL) != 0)
+        return fail(error, BGC_STATUS_EVALUATION_FAILED,
+                    "GNUbg could not analyze the cube decision");
+    decision = FindCubeDecision(equities, outputs, &cube);
+
+    if (!isfinite(equities[OUTPUT_OPTIMAL]) ||
+        !isfinite(equities[OUTPUT_NODOUBLE]) ||
+        !isfinite(equities[OUTPUT_TAKE]) ||
+        !isfinite(equities[OUTPUT_DROP]))
+        return fail(error, BGC_STATUS_EVALUATION_FAILED,
+                    "GNUbg returned a non-finite cube equity");
+
+    analysis_out->evaluated = TRUE;
+    analysis_out->preoffer_optimal_equity = equities[OUTPUT_OPTIMAL];
+    analysis_out->no_double_equity = equities[OUTPUT_NODOUBLE];
+    analysis_out->double_take_equity = equities[OUTPUT_TAKE];
+    analysis_out->double_pass_equity = equities[OUTPUT_DROP];
+
+    preferred = phase == BGC_CUBE_PHASE_CONSIDER_OFFER
+        ? offer_recommendation(decision)
+        : response_recommendation(decision);
+    if (phase == BGC_CUBE_PHASE_RESPOND_TO_OFFER && preferred < 0)
+        preferred = equities[OUTPUT_TAKE] <= equities[OUTPUT_DROP]
+            ? BGC_CUBE_ACTION_TAKE : BGC_CUBE_ACTION_PASS;
+    if (phase == BGC_CUBE_PHASE_CONSIDER_OFFER && preferred < 0)
+        preferred = BGC_CUBE_ACTION_NO_DOUBLE;
+
+    selected_index = select_cube_action(
+        phase, preferred, legal_actions, legal_action_count,
+        equities, TRUE, beaver_allowed);
+    if (selected_index >= legal_action_count)
+        return fail(error, BGC_STATUS_EVALUATION_FAILED,
+                    "GNUbg could not select a supplied legal cube action");
+    analysis_out->selected_index = (uint32_t) selected_index;
+    analysis_out->decision = legal_actions[selected_index];
+    analysis_out->selected_action_equity = cube_action_equity(
+        phase, legal_actions[selected_index], equities, beaver_allowed);
     return BGC_STATUS_OK;
 }
 

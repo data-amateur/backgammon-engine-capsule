@@ -41,6 +41,8 @@ empty_money_position(const bgc_player player_on_roll,
     position.dice[1] = die1;
     position.cube.value = 1;
     position.cube.owner = -1;
+    position.cube.state = BGC_CUBE_STATE_AVAILABLE;
+    position.cube.offered_by = -1;
     position.match.mode = BGC_MATCH_MODE_MONEY;
     position.match.length = 0;
     position.match.crawford = BGC_CRAWFORD_NONE;
@@ -266,6 +268,12 @@ test_invalid_match_score_rejected(bgc_engine *engine)
                                          &settings, &score, 1, &best_index, &error),
                   BGC_STATUS_INVALID_POSITION, &error);
 
+    position.match.score.white = 256;
+    expect_status("wide match score rejection",
+                  bgc_engine_choose_turn(engine, &position, &candidate, 1,
+                                         &settings, &score, 1, &best_index, &error),
+                  BGC_STATUS_INVALID_POSITION, &error);
+
     position.match.score.white = 4;
     position.match.crawford = BGC_CRAWFORD_GAME;
     position.cube.value = 2;
@@ -342,6 +350,577 @@ score_start_candidates(bgc_engine *engine, const bgc_player player,
                              ? "white candidate scoring"
                              : "black candidate scoring",
                          status, BGC_STATUS_OK, &error);
+}
+
+static const char *
+cube_action_name(const bgc_cube_action action)
+{
+    switch (action) {
+    case BGC_CUBE_ACTION_DOUBLE:
+        return "double";
+    case BGC_CUBE_ACTION_NO_DOUBLE:
+        return "no-double";
+    case BGC_CUBE_ACTION_TOO_GOOD:
+        return "too-good";
+    case BGC_CUBE_ACTION_TAKE:
+        return "take";
+    case BGC_CUBE_ACTION_PASS:
+        return "pass";
+    case BGC_CUBE_ACTION_BEAVER:
+        return "beaver";
+    default:
+        return "invalid";
+    }
+}
+
+static bgc_position
+cube_double_take_position(void)
+{
+    bgc_position position = empty_money_position(BGC_PLAYER_WHITE, 0, 0);
+
+    position.board.points[16].white = 2;
+    position.board.points[19].white = 2;
+    position.board.points[21].white = 2;
+    position.board.points[22].white = 9;
+    position.board.points[4].black = 1;
+    position.board.points[7].black = 11;
+    position.board.points[17].black = 1;
+    position.board.points[18].black = 2;
+    return position;
+}
+
+static bgc_position
+cube_double_pass_position(void)
+{
+    bgc_position position = empty_money_position(BGC_PLAYER_WHITE, 0, 0);
+
+    position.board.points[11].white = 6;
+    position.board.points[13].white = 2;
+    position.board.points[16].white = 1;
+    position.board.points[22].white = 6;
+    position.board.points[1].black = 3;
+    position.board.points[10].black = 4;
+    position.board.points[12].black = 1;
+    position.board.points[23].black = 7;
+    return position;
+}
+
+static bgc_position
+cube_no_double_position(void)
+{
+    bgc_position position = empty_money_position(BGC_PLAYER_WHITE, 0, 0);
+
+    position.board.points[6].white = 1;
+    position.board.points[17].white = 12;
+    position.board.points[19].white = 1;
+    position.board.points[20].white = 1;
+    position.board.points[2].black = 3;
+    position.board.points[5].black = 1;
+    position.board.points[7].black = 7;
+    position.board.points[8].black = 4;
+    return position;
+}
+
+static bgc_position
+cube_too_good_position(void)
+{
+    bgc_position position = empty_money_position(BGC_PLAYER_WHITE, 0, 0);
+
+    position.board.points[3].white = 2;
+    position.board.points[4].white = 3;
+    position.board.points[6].white = 2;
+    position.board.points[17].white = 8;
+    position.board.points[0].black = 8;
+    position.board.points[10].black = 1;
+    position.board.points[13].black = 5;
+    position.board.points[15].black = 1;
+    return position;
+}
+
+static bgc_position
+cube_beaver_position(void)
+{
+    bgc_position position = empty_money_position(BGC_PLAYER_WHITE, 0, 0);
+
+    position.board.points[6].white = 1;
+    position.board.points[11].white = 2;
+    position.board.points[12].white = 11;
+    position.board.points[21].white = 1;
+    position.board.points[1].black = 3;
+    position.board.points[15].black = 2;
+    position.board.points[16].black = 8;
+    position.board.points[18].black = 2;
+    position.rules.jacoby = 1;
+    position.rules.beavers = 1;
+    return position;
+}
+
+static bgc_position
+reflect_position(const bgc_position *position)
+{
+    bgc_position reflected = *position;
+    unsigned int point;
+
+    memset(&reflected.board, 0, sizeof(reflected.board));
+    for (point = 0; point < BGC_POINT_COUNT; point++) {
+        reflected.board.points[23 - point].white =
+            position->board.points[point].black;
+        reflected.board.points[23 - point].black =
+            position->board.points[point].white;
+    }
+    reflected.board.bar.white = position->board.bar.black;
+    reflected.board.bar.black = position->board.bar.white;
+    reflected.board.borne_off.white = position->board.borne_off.black;
+    reflected.board.borne_off.black = position->board.borne_off.white;
+    reflected.player_on_roll = position->player_on_roll == BGC_PLAYER_WHITE
+        ? BGC_PLAYER_BLACK : BGC_PLAYER_WHITE;
+    reflected.cube.owner = position->cube.owner == -1
+        ? -1 : !position->cube.owner;
+    reflected.cube.offered_by = position->cube.offered_by == -1
+        ? -1 : !position->cube.offered_by;
+    reflected.match.score.white = position->match.score.black;
+    reflected.match.score.black = position->match.score.white;
+    return reflected;
+}
+
+static int
+expect_cube_call(bgc_engine *engine, const char *test,
+                 const bgc_position *position,
+                 const bgc_cube_decision_phase phase,
+                 const bgc_player engine_player,
+                 const bgc_cube_action *actions,
+                 const size_t action_count,
+                 const bgc_cube_action expected_action,
+                 const size_t expected_index,
+                 const int expected_evaluated,
+                 bgc_cube_analysis *analysis_out)
+{
+    const bgc_settings settings = { BGC_STRENGTH_EXPERT };
+    bgc_cube_analysis local_analysis;
+    bgc_cube_analysis *analysis = analysis_out ? analysis_out : &local_analysis;
+    bgc_error error;
+    bgc_status status = bgc_engine_decide_cube(
+        engine, position, phase, engine_player, actions, action_count,
+        &settings, analysis, &error);
+
+    if (!expect_status(test, status, BGC_STATUS_OK, &error))
+        return 0;
+    if (analysis->decision != expected_action ||
+        analysis->selected_index != expected_index ||
+        analysis->selected_index >= action_count ||
+        actions[analysis->selected_index] != analysis->decision ||
+        analysis->evaluated != expected_evaluated) {
+        char message[256];
+        snprintf(message, sizeof(message),
+                 "expected %s at index %zu (evaluated=%d), received %s at "
+                 "index %u (evaluated=%d)",
+                 cube_action_name(expected_action), expected_index,
+                 expected_evaluated, cube_action_name(analysis->decision),
+                 analysis->selected_index, analysis->evaluated);
+        record_failure(test, message);
+        return 0;
+    }
+    return 1;
+}
+
+static void
+expect_equity(const char *test, const char *field,
+              const float actual, const float expected)
+{
+    if (!isfinite(actual) || fabsf(actual - expected) > 1e-5f) {
+        char message[192];
+        snprintf(message, sizeof(message),
+                 "%s expected %.9f, received %.9f",
+                 field, expected, actual);
+        record_failure(test, message);
+    }
+}
+
+static void
+expect_cube_equities(const char *test, const bgc_cube_analysis *analysis,
+                     const float optimal, const float no_double,
+                     const float double_take, const float double_pass)
+{
+    expect_equity(test, "pre-offer optimal equity",
+                  analysis->preoffer_optimal_equity, optimal);
+    expect_equity(test, "no-double equity",
+                  analysis->no_double_equity, no_double);
+    expect_equity(test, "double/take equity",
+                  analysis->double_take_equity, double_take);
+    expect_equity(test, "double/pass equity",
+                  analysis->double_pass_equity, double_pass);
+}
+
+static void
+test_cube_goldens(bgc_engine *engine)
+{
+    const bgc_cube_action offer_actions[] = {
+        BGC_CUBE_ACTION_TOO_GOOD,
+        BGC_CUBE_ACTION_NO_DOUBLE,
+        BGC_CUBE_ACTION_DOUBLE
+    };
+    const bgc_cube_action response_actions[] = {
+        BGC_CUBE_ACTION_PASS,
+        BGC_CUBE_ACTION_TAKE
+    };
+    const bgc_cube_action no_double_only[] = {
+        BGC_CUBE_ACTION_NO_DOUBLE
+    };
+    const bgc_cube_action double_or_too_good[] = {
+        BGC_CUBE_ACTION_DOUBLE,
+        BGC_CUBE_ACTION_TOO_GOOD
+    };
+    bgc_cube_analysis analysis;
+    bgc_cube_analysis reflected_analysis;
+    bgc_position position;
+    bgc_position response;
+    bgc_position reflected;
+
+    position = cube_double_take_position();
+    expect_position_id("double/take Position ID", &position,
+                       "YAH4PwIAAGP2Hw");
+    if (expect_cube_call(engine, "double/take offer", &position,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                         offer_actions, 3, BGC_CUBE_ACTION_DOUBLE, 2, 1,
+                         &analysis)) {
+        expect_cube_equities("double/take offer", &analysis,
+                             0.885209322f, 0.796325445f,
+                             0.885209322f, 1.0f);
+        expect_equity("double/take selected equity", "selected equity",
+                      analysis.selected_action_equity, 0.885209322f);
+    }
+
+    response = position;
+    response.cube.state = BGC_CUBE_STATE_OFFERED;
+    response.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_cube_call(engine, "double/take response", &response,
+                     BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+                     response_actions, 2, BGC_CUBE_ACTION_TAKE, 1, 1,
+                     &analysis);
+
+    reflected = reflect_position(&position);
+    expect_position_id("reflected double/take Position ID", &reflected,
+                       "YAH4PwIAAGP2Hw");
+    if (expect_cube_call(engine, "reflected double/take offer", &reflected,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_BLACK,
+                         offer_actions, 3, BGC_CUBE_ACTION_DOUBLE, 2, 1,
+                         &reflected_analysis)) {
+        expect_equity("reflected no-double equity", "no-double equity",
+                      reflected_analysis.no_double_equity,
+                      analysis.no_double_equity);
+        expect_equity("reflected double/take equity", "double/take equity",
+                      reflected_analysis.double_take_equity,
+                      analysis.double_take_equity);
+        expect_equity("reflected double/pass equity", "double/pass equity",
+                      reflected_analysis.double_pass_equity,
+                      analysis.double_pass_equity);
+    }
+
+    position = cube_double_pass_position();
+    expect_position_id("double/pass Position ID", &position,
+                       "fwDkARwA+BmBHw");
+    if (expect_cube_call(engine, "double/pass offer", &position,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                         offer_actions, 3, BGC_CUBE_ACTION_DOUBLE, 2, 1,
+                         &analysis))
+        expect_cube_equities("double/pass offer", &analysis,
+                             1.0f, 0.903714538f, 1.050116777f, 1.0f);
+
+    response = position;
+    response.cube.state = BGC_CUBE_STATE_OFFERED;
+    response.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_cube_call(engine, "double/pass response", &response,
+                     BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+                     response_actions, 2, BGC_CUBE_ACTION_PASS, 0, 1,
+                     &analysis);
+
+    position.cube.value = 2;
+    position.cube.owner = BGC_PLAYER_WHITE;
+    position.cube.state = BGC_CUBE_STATE_ACCEPTED;
+    expect_cube_call(engine, "owned-cube redouble", &position,
+                     BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                     offer_actions, 3, BGC_CUBE_ACTION_DOUBLE, 2, 1,
+                     &analysis);
+    reflected = reflect_position(&position);
+    expect_cube_call(engine, "reflected owned-cube redouble", &reflected,
+                     BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_BLACK,
+                     offer_actions, 3, BGC_CUBE_ACTION_DOUBLE, 2, 1,
+                     &reflected_analysis);
+    expect_equity("reflected redouble equity", "selected equity",
+                  reflected_analysis.selected_action_equity,
+                  analysis.selected_action_equity);
+
+    position = cube_no_double_position();
+    expect_position_id("no-double Position ID", &position,
+                       "AID3Jw5AAPw/BQ");
+    if (expect_cube_call(engine, "no-double offer", &position,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                         offer_actions, 3, BGC_CUBE_ACTION_NO_DOUBLE, 1, 1,
+                         &analysis))
+        expect_cube_equities("no-double offer", &analysis,
+                             -0.010182460f, -0.010182460f,
+                             -0.395585269f, 1.0f);
+    expect_cube_call(engine, "no-double subset alias", &position,
+                     BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                     double_or_too_good, 2, BGC_CUBE_ACTION_TOO_GOOD, 1, 1,
+                     &analysis);
+    expect_cube_call(engine, "forced no-double singleton", &position,
+                     BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                     no_double_only, 1, BGC_CUBE_ACTION_NO_DOUBLE, 0, 0,
+                     &analysis);
+}
+
+static void
+test_cube_beavers_and_jacoby(bgc_engine *engine)
+{
+    const bgc_cube_action offer_actions[] = {
+        BGC_CUBE_ACTION_DOUBLE,
+        BGC_CUBE_ACTION_NO_DOUBLE,
+        BGC_CUBE_ACTION_TOO_GOOD
+    };
+    const bgc_cube_action full_response[] = {
+        BGC_CUBE_ACTION_PASS,
+        BGC_CUBE_ACTION_BEAVER,
+        BGC_CUBE_ACTION_TAKE
+    };
+    const bgc_cube_action ordinary_response[] = {
+        BGC_CUBE_ACTION_PASS,
+        BGC_CUBE_ACTION_TAKE
+    };
+    const bgc_cube_action beaver_or_pass[] = {
+        BGC_CUBE_ACTION_BEAVER,
+        BGC_CUBE_ACTION_PASS
+    };
+    const bgc_cube_action beaver_only[] = {
+        BGC_CUBE_ACTION_BEAVER
+    };
+    const bgc_settings settings = { BGC_STRENGTH_EXPERT };
+    bgc_cube_analysis analysis;
+    bgc_position position = cube_beaver_position();
+    bgc_position response;
+    bgc_error error;
+
+    expect_position_id("beaver Position ID", &position,
+                       "YP4NABxAsP8DCA");
+    if (expect_cube_call(engine, "beaver offer", &position,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                         offer_actions, 3, BGC_CUBE_ACTION_NO_DOUBLE, 1, 1,
+                         &analysis))
+        expect_cube_equities("beaver offer", &analysis,
+                             -0.348086745f, -0.348086745f,
+                             -0.999342144f, 1.0f);
+
+    response = position;
+    response.cube.state = BGC_CUBE_STATE_OFFERED;
+    response.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_cube_call(engine, "beaver response", &response,
+                     BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+                     full_response, 3, BGC_CUBE_ACTION_BEAVER, 1, 1,
+                     &analysis);
+    expect_cube_call(engine, "beaver omitted fallback", &response,
+                     BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+                     ordinary_response, 2, BGC_CUBE_ACTION_TAKE, 1, 1,
+                     &analysis);
+
+    response = cube_double_take_position();
+    response.rules.beavers = 1;
+    response.cube.state = BGC_CUBE_STATE_OFFERED;
+    response.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_cube_call(engine, "equity-ranked beaver/pass subset", &response,
+                     BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+                     beaver_or_pass, 2, BGC_CUBE_ACTION_PASS, 1, 1,
+                     &analysis);
+
+    response = cube_beaver_position();
+    response.cube.state = BGC_CUBE_STATE_OFFERED;
+    response.cube.offered_by = BGC_PLAYER_WHITE;
+    response.cube.value = 1024;
+    expect_cube_call(engine, "maximum legal beaver cube", &response,
+                     BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+                     beaver_only, 1, BGC_CUBE_ACTION_BEAVER, 0, 0,
+                     &analysis);
+    response.cube.value = 2048;
+    expect_status("oversize beaver cube rejection",
+                  bgc_engine_decide_cube(
+                      engine, &response, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
+                      BGC_PLAYER_BLACK, beaver_only, 1, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_INVALID_ARGUMENT, &error);
+
+    position = cube_too_good_position();
+    expect_position_id("too-good Position ID", &position,
+                       "APkIwD/YGQD/AA");
+    if (expect_cube_call(engine, "too-good without Jacoby", &position,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                         offer_actions, 3, BGC_CUBE_ACTION_TOO_GOOD, 2, 1,
+                         &analysis))
+        expect_cube_equities("too-good without Jacoby", &analysis,
+                             1.385210276f, 1.385210276f,
+                             2.332368374f, 1.0f);
+    position.rules.jacoby = 1;
+    if (expect_cube_call(engine, "Jacoby double/pass", &position,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                         offer_actions, 3, BGC_CUBE_ACTION_DOUBLE, 0, 1,
+                         &analysis))
+        expect_cube_equities("Jacoby double/pass", &analysis,
+                             1.0f, 0.888083518f, 2.332368374f, 1.0f);
+}
+
+static void
+test_cube_boundaries_and_validation(bgc_engine *engine)
+{
+    const bgc_cube_action offer_actions[] = {
+        BGC_CUBE_ACTION_DOUBLE,
+        BGC_CUBE_ACTION_NO_DOUBLE
+    };
+    const bgc_cube_action response_actions[] = {
+        BGC_CUBE_ACTION_TAKE,
+        BGC_CUBE_ACTION_PASS
+    };
+    const bgc_cube_action duplicate_actions[] = {
+        BGC_CUBE_ACTION_DOUBLE,
+        BGC_CUBE_ACTION_DOUBLE
+    };
+    const bgc_cube_action mixed_actions[] = {
+        BGC_CUBE_ACTION_DOUBLE,
+        BGC_CUBE_ACTION_TAKE
+    };
+    const bgc_settings settings = { BGC_STRENGTH_EXPERT };
+    bgc_position position = starting_position(BGC_PLAYER_WHITE, 0, 0);
+    bgc_cube_analysis analysis;
+    bgc_error error;
+
+    position.match.mode = BGC_MATCH_MODE_MATCH;
+    position.match.length = 64;
+    position.cube.value = 64;
+    expect_cube_call(engine, "match cube-64 offer short-circuit", &position,
+                     BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                     offer_actions, 2, BGC_CUBE_ACTION_NO_DOUBLE, 1, 0,
+                     &analysis);
+    position.cube.state = BGC_CUBE_STATE_OFFERED;
+    position.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_status("match cube-64 response bound",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
+                      BGC_PLAYER_BLACK, response_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_UNSUPPORTED, &error);
+
+    position = starting_position(BGC_PLAYER_WHITE, 0, 0);
+    position.cube.value = BGC_MAX_CUBE_VALUE;
+    expect_cube_call(engine, "money cube-4096 offer short-circuit", &position,
+                     BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                     offer_actions, 2, BGC_CUBE_ACTION_NO_DOUBLE, 1, 0,
+                     &analysis);
+    position.cube.state = BGC_CUBE_STATE_OFFERED;
+    position.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_status("money cube-4096 response bound",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
+                      BGC_PLAYER_BLACK, response_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_UNSUPPORTED, &error);
+
+    position = cube_double_take_position();
+    position.match.mode = BGC_MATCH_MODE_MATCH;
+    position.match.length = 5;
+    position.match.score.white = 4;
+    position.match.score.black = 2;
+    position.match.crawford = BGC_CRAWFORD_POST;
+    expect_cube_call(engine, "post-Crawford leader offer short-circuit",
+                     &position, BGC_CUBE_PHASE_CONSIDER_OFFER,
+                     BGC_PLAYER_WHITE, offer_actions, 2,
+                     BGC_CUBE_ACTION_NO_DOUBLE, 1, 0, &analysis);
+    position.cube.state = BGC_CUBE_STATE_OFFERED;
+    position.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_cube_call(engine, "post-Crawford pending response", &position,
+                     BGC_CUBE_PHASE_RESPOND_TO_OFFER, BGC_PLAYER_BLACK,
+                     response_actions, 2, BGC_CUBE_ACTION_TAKE, 0, 1,
+                     &analysis);
+
+    position = starting_position(BGC_PLAYER_WHITE, 1, 2);
+    expect_status("nonempty cube dice rejection",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_CONSIDER_OFFER,
+                      BGC_PLAYER_WHITE, offer_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_INVALID_POSITION, &error);
+    position.dice[0] = 0;
+    position.dice[1] = 0;
+    expect_status("wrong offer player rejection",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_CONSIDER_OFFER,
+                      BGC_PLAYER_BLACK, offer_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_INVALID_POSITION, &error);
+    expect_status("duplicate cube action rejection",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_CONSIDER_OFFER,
+                      BGC_PLAYER_WHITE, duplicate_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_INVALID_ARGUMENT, &error);
+    expect_status("mixed cube action families rejection",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_CONSIDER_OFFER,
+                      BGC_PLAYER_WHITE, mixed_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_INVALID_ARGUMENT, &error);
+
+    position.cube.state = BGC_CUBE_STATE_OFFERED;
+    position.cube.offered_by = BGC_PLAYER_BLACK;
+    expect_status("offerer/on-roll mismatch rejection",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
+                      BGC_PLAYER_WHITE, response_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_INVALID_POSITION, &error);
+
+    position = starting_position(BGC_PLAYER_WHITE, 0, 0);
+    position.match.mode = BGC_MATCH_MODE_MATCH;
+    position.match.length = 5;
+    position.match.score.white = 4;
+    position.match.crawford = BGC_CRAWFORD_GAME;
+    position.cube.state = BGC_CUBE_STATE_OFFERED;
+    position.cube.offered_by = BGC_PLAYER_WHITE;
+    expect_status("Crawford pending offer rejection",
+                  bgc_engine_decide_cube(
+                      engine, &position, BGC_CUBE_PHASE_RESPOND_TO_OFFER,
+                      BGC_PLAYER_BLACK, response_actions, 2, &settings,
+                      &analysis, &error),
+                  BGC_STATUS_INVALID_POSITION, &error);
+}
+
+static void
+test_no_database_race_regression(bgc_engine *engine)
+{
+    const bgc_cube_action actions[] = {
+        BGC_CUBE_ACTION_DOUBLE,
+        BGC_CUBE_ACTION_NO_DOUBLE,
+        BGC_CUBE_ACTION_TOO_GOOD
+    };
+    bgc_position position = empty_money_position(BGC_PLAYER_WHITE, 0, 0);
+    bgc_cube_analysis analysis;
+
+    position.board.points[1].white = 10;
+    position.board.borne_off.white = 5;
+    position.board.points[5].black = 15;
+    if (expect_cube_call(engine, "no-database race fallback", &position,
+                         BGC_CUBE_PHASE_CONSIDER_OFFER, BGC_PLAYER_WHITE,
+                         actions, 3, BGC_CUBE_ACTION_TOO_GOOD, 2, 1,
+                         &analysis) &&
+        (!isfinite(analysis.no_double_equity) ||
+         !isfinite(analysis.double_take_equity)))
+        record_failure("no-database race fallback",
+                       "returned non-finite race equities");
+}
+
+static void
+test_cube_decisions(bgc_engine *engine)
+{
+    test_cube_goldens(engine);
+    test_cube_beavers_and_jacoby(engine);
+    test_cube_boundaries_and_validation(engine);
+    test_no_database_race_regression(engine);
 }
 
 static void
@@ -447,6 +1026,7 @@ main(int argc, char **argv)
     test_complete_bar_hit(engine);
     test_oversize_bearoff_rejected(engine);
     test_invalid_match_score_rejected(engine);
+    test_cube_decisions(engine);
     test_color_reflection_scores(engine);
     expect_status("engine reset", bgc_engine_reset(engine, &error),
                   BGC_STATUS_OK, &error);
