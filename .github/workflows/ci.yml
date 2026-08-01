@@ -19,10 +19,35 @@ jobs:
       - name: Install native build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential gpgv libglib2.0-dev pkg-config
+          sudo apt-get install --yes build-essential gpgv libglib2.0-dev patch pkg-config
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npm run verify
+
+  wasm-abi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Install pinned Emscripten SDK
+        run: |
+          git clone --branch 6.0.5 --depth 1 https://github.com/emscripten-core/emsdk.git "${RUNNER_TEMP}/emsdk-6.0.5"
+          emsdk_checkout_commit="$(git -C "${RUNNER_TEMP}/emsdk-6.0.5" rev-parse HEAD)"
+          if [ "${emsdk_checkout_commit}" != "dfb9d1a46c3bb8f52e1e6324be23123b9d73c190" ]; then
+            echo "Unexpected emsdk commit: ${emsdk_checkout_commit}" >&2
+            exit 1
+          fi
+          "${RUNNER_TEMP}/emsdk-6.0.5/emsdk" install 6.0.5
+          "${RUNNER_TEMP}/emsdk-6.0.5/emsdk" activate 6.0.5
+      - name: Build and test wasm32 ABI
+        run: |
+          source "${RUNNER_TEMP}/emsdk-6.0.5/emsdk_env.sh"
+          npm run test:wasm-abi
 
   browser:
     runs-on: ubuntu-latest

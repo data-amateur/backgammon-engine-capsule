@@ -26,6 +26,9 @@ and licensing details.
 - For the native GNUbg checkpoint: a C11 compiler, GNU Make, `tar`,
   `patch`, `pkg-config`, and GLib 2.0 development headers.
 - A browser installed through Playwright for the browser suite.
+- Only for the ABI WebAssembly smoke build: the exact external Emscripten SDK
+  pinned in `toolchains/emscripten-lock.json`. It is not installed by npm or
+  required to run the mock capsule.
 
 ## Run locally
 
@@ -72,10 +75,16 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-`npm run verify` runs every non-browser check, including the native GNUbg
-golden suite, and makes a production-like browser build using the checked-in
-loopback-only verification configuration. It checks the pinned GNUbg archive's
-size, SHA-256 hash, detached signature, and exact signer fingerprint without
+`npm run verify` runs every non-browser check, including a native
+compile-time/runtime check of every frozen wasm32 ABI size and offset and the
+native GNUbg golden suite. With the separately installed pinned Emscripten SDK
+activated, `npm run test:wasm-abi` additionally builds and instantiates a tiny
+ABI-only `.mjs + .wasm` module. It does not link GNUbg or alter the active
+mock Worker. A separate CI job performs that real pinned-toolchain smoke test.
+Normal verification also makes a production-like browser build using the
+checked-in loopback-only verification configuration. It checks the pinned
+GNUbg archive's size, SHA-256 hash, detached signature, and exact signer
+fingerprint without
 accessing the user's GnuPG keyring. The native suite extracts that authenticated
 archive into an ignored work directory and performs a clean headless rebuild.
 The native build records its ambient compiler, target, flags, Make,
@@ -133,11 +142,14 @@ and maximum-cube safety cases with pinned goldens. Source preparation applies
 and records the public GPL-side compatibility patches after authenticating the
 unchanged signed archive.
 
-The next increment freezes and tests the wasm32 ABI, pins Emscripten, and
-compiles this same public GPL-side boundary to single-threaded modularized WASM
-inside the compute Worker. All GNUbg source, patches, build scripts, WASM,
-networks, license material, and exact corresponding-source archives must remain
-in this public capsule project—never in the proprietary application.
+The current increment freezes and tests ABI 1.0, pins Emscripten 6.0.5, and
+builds an ABI-only single-threaded modularized WebAssembly smoke module. The
+active browser Worker is still the GPL-free mock. The next increment adds safe
+arena marshalling and parity tests before compiling GNUbg evaluator objects for
+wasm32. All GNUbg source, patches, build scripts, WASM, networks, license
+material, and exact corresponding-source archives must remain in this public
+capsule project—never in the proprietary application.
 
-See [the native harness guide](docs/GNUBG-NATIVE.md) and
+See [the native harness guide](docs/GNUBG-NATIVE.md),
+[the WebAssembly checkpoint](docs/GNUBG-WASM.md), and
 [the roadmap](docs/GNUBG-ROADMAP.md) before continuing that work.

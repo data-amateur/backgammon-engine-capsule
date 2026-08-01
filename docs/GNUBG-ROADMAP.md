@@ -26,9 +26,13 @@ integration.
    generated legal set. The future TypeScript/WASM bridge must additionally
    compare optional `resultingBoard` values; current host turns omit that
    field.
-7. Freeze the wasm32-facing ABI with fixed-width fields and layout/offset tests,
-   pin Emscripten, and start with single-threaded modularized output inside the
-   existing Worker. Do not require SharedArrayBuffer/pthreads for v1.
+7. **In progress.** ABI 1.0 now freezes fixed-width fields, inline candidates,
+   arena-relative offsets, structure sizes, and offsets with native assertions
+   and a runtime descriptor. Emscripten 6.0.5 is pinned, and an ABI-only
+   single-threaded modularized `.mjs + .wasm` smoke build proves the toolchain
+   without linking GNUbg. Next add safe marshalling and native/WASM parity,
+   then integrate behind the compute Worker. Do not require
+   SharedArrayBuffer/pthreads for v1.
 8. Fetch WASM/networks through explicit CORS-enabled URLs; do not resolve them
    relative to the Blob Worker URL.
 9. If synchronous native search cannot be interrupted, keep cancellation in

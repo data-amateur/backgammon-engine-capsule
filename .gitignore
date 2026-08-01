@@ -18,6 +18,11 @@ public/mock-engine.worker.js.map
 third_party/gnubg/work/
 build/gnubg/
 
+# Emscripten must remain an external development dependency
+.emsdk/
+emsdk/
+.emscripten-cache/
+
 # Browser and test output
 playwright-report/
 test-results/

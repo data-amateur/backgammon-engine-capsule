@@ -8,8 +8,8 @@ Apache-2.0 under the root `LICENSE`, except where a file says otherwise.
 
 The authenticated GNU Backgammon source release under
 `third_party/gnubg/upstream/`, the capsule-authored GNUbg patches under
-`third_party/gnubg/patches/`, and the linked native adapter and golden tests
-under `native/gnubg/` are GPL-3.0-or-later. See
+`third_party/gnubg/patches/`, and the native adapter, wasm32 ABI boundary,
+and their tests under `native/gnubg/` are GPL-3.0-or-later. See
 `LICENSES/GPL-3.0-or-later.txt` and `THIRD_PARTY_NOTICES.md`.
 
 The default browser capsule contains the original deterministic mock engine and

@@ -23,10 +23,13 @@
     "test:e2e": "playwright test",
     "verify:dist": "node scripts/verify-dist.mjs",
     "verify:gnubg-source": "node scripts/verify-gnubg-source.mjs",
-    "verify": "npm run verify:gnubg-source && npm run typecheck && npm run lint && npm run test && npm run test:gnubg-native && npm run build:verification",
+    "verify": "npm run verify:gnubg-source && npm run typecheck && npm run lint && npm run test && npm run test:wasm-abi-layout && npm run test:gnubg-native && npm run build:verification",
     "prepare:gnubg-source": "node scripts/prepare-gnubg-source.mjs",
     "build:gnubg-native": "node scripts/build-gnubg-native.mjs",
-    "test:gnubg-native": "node scripts/test-gnubg-native.mjs"
+    "test:gnubg-native": "node scripts/test-gnubg-native.mjs",
+    "test:wasm-abi-layout": "node scripts/test-wasm-abi-layout.mjs",
+    "build:wasm-abi": "node scripts/build-wasm-abi.mjs",
+    "test:wasm-abi": "npm run build:wasm-abi && node scripts/test-wasm-abi.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

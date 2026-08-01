@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "emscriptenVersion": "6.0.5",
+  "emsdkTag": "6.0.5",
+  "emsdkCommit": "dfb9d1a46c3bb8f52e1e6324be23123b9d73c190",
+  "emscriptenReleaseCommit": "1db513782be24469589d7cb8a1f1834e9a33f271",
+  "emscriptenReleasesBuild": "dbd755b5da399329c2576f6e3dfa7f419f5d8409",
+  "sources": {
+    "release": "https://github.com/emscripten-core/emscripten/releases/tag/6.0.5",
+    "releaseMapping": "https://raw.githubusercontent.com/emscripten-core/emsdk/dfb9d1a46c3bb8f52e1e6324be23123b9d73c190/emscripten-releases-tags.json",
+    "sdk": "https://github.com/emscripten-core/emsdk.git"
+  }
+}

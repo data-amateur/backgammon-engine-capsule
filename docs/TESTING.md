@@ -34,6 +34,16 @@ indices, owned redoubles, color reflection, post-Crawford response, and the
 match/money cube ceilings. Native execution treats GLib criticals as fatal, and
 a race fixture exercises the no-two-sided-database compatibility patch.
 
+The always-on wasm32 ABI layout test compiles the parallel public ABI with the
+host C11 compiler. Static assertions pin every published size and offset; its
+runtime descriptor test also checks versioning, reserved words, and null or
+undersized output behavior. With the external Emscripten 6.0.5 SDK activated,
+`npm run test:wasm-abi` builds an ignored ABI-only module and instantiates it in
+Node, confirming wasm32 pointer width, little-endian reads, and the same layout.
+A separate CI job installs the exact locked SDK and runs the real wasm32 smoke
+test. Neither test links the GNUbg evaluator or changes the mock browser
+artifact.
+
 Preserve all mock tests. Before the WASM bridge ships, add remaining checker
 higher-die/partial-turn and doubles fixtures, run the same native goldens against
 wasm32, and add asset failures, Worker termination/recreation, and cold/warm

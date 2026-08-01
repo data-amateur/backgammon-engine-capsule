@@ -15,10 +15,11 @@ Run `npm audit` and review the lockfile whenever these tools are updated.
 The repository preserves an unmodified, signed GNU Backgammon source release
 under `third_party/gnubg/upstream/`, then applies the ordered capsule-authored
 compatibility patches under `third_party/gnubg/patches/` to build a minimal
-native adapter and golden-test executable. GNUbg's program code, those patches,
-and the linked adapter and tests are licensed under `GPL-3.0-or-later`; the
-complete GPL v3 text is available at `LICENSES/GPL-3.0-or-later.txt` and inside
-the signed source archive. Patch purpose, order, and authorship are recorded in
+native adapter and golden-test executable. The separate wasm32 ABI boundary
+and its layout test also live under `native/gnubg/`. GNUbg's program code,
+those patches, the adapter, the ABI boundary, and their tests are licensed
+under `GPL-3.0-or-later`; the complete GPL v3 text is available at
+`LICENSES/GPL-3.0-or-later.txt` and inside the signed source archive. Patch purpose, order, and authorship are recorded in
 `third_party/gnubg/patches/README.md`.
 
 Upstream project: <https://www.gnu.org/software/gnubg/>
@@ -41,7 +42,7 @@ native binary.
 
 The capsule shell and GPL-free mock remain under the repository's root
 Apache-2.0 license. GNUbg code and data are not linked into, bundled with, or
-served by the default mock browser runtime. The generated native harness is an
-ignored local build and GPL-covered test artifact. A future Worker that links
+served by the default mock browser runtime. The generated native harness and
+ABI-only WebAssembly smoke module are ignored local GPL-covered test artifacts. A future Worker that links
 GNUbg will be distributed in compliance with GNUbg's GPL terms together with
 its complete corresponding source.
