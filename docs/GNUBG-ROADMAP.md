@@ -3,13 +3,16 @@
 Do not begin this phase until the mock passes the real private-host browser
 integration.
 
-0. Move this capsule into its independent public repository. Verify that the
-   proprietary parent repository, its bundles, and its deployment contain no
-   capsule or GNUbg source, patches, WASM, neural networks, or build artifacts.
-   Do not add any GPL material before this separation is complete.
-1. Select and verify an official signed GNUbg stable release from GNU/Savannah.
-2. Vendor the complete exact source and record archive, signature, commit, and
-   SHA-256 provenance.
+0. **Completed.** Move this capsule into its independent public repository.
+   Verify that the proprietary parent repository, its bundles, and its
+   deployment contain no capsule or GNUbg source, patches, WASM, neural
+   networks, or build artifacts. Do not add any GPL material before this
+   separation is complete.
+1. **Completed.** Select and verify an official signed GNUbg stable release from
+   GNU/Savannah. Version 1.08.003 is authenticated with GNU's official keyring.
+2. **Completed.** Vendor the complete exact source and record archive, signature,
+   tag commit, locally computed SHA-256 provenance, signer key, and license.
+   See `third_party/gnubg/source-lock.json`.
 3. Build a minimal native headless harness and golden tests first.
 4. Exclude desktop UI, audio, database, Python, networking, and unrelated
    command features. Do not expose GNUbg's arbitrary command parser.

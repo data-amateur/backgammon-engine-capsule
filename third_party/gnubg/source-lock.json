@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "name": "GNU Backgammon",
+  "version": "1.08.003",
+  "upstreamHomepage": "https://www.gnu.org/software/gnubg/",
+  "releaseTag": "release-1_08_003",
+  "releaseCommit": "b1582e2600095ed0e43256246ae5a244265b63cf",
+  "releaseTagUrl": "https://cgit.git.savannah.gnu.org/cgit/gnubg.git/tag/?h=release-1_08_003",
+  "archive": {
+    "path": "third_party/gnubg/upstream/gnubg-release-1.08.003-sources.tar.gz",
+    "url": "https://ftp.gnu.org/gnu/gnubg/gnubg-release-1.08.003-sources.tar.gz",
+    "bytes": 14046779,
+    "sha256": "6f7d969b13cfff786fba90ff8cc5e5d564b97f4f0aa69afe4f3838f18c445979"
+  },
+  "signature": {
+    "path": "third_party/gnubg/upstream/gnubg-release-1.08.003-sources.tar.gz.sig",
+    "url": "https://ftp.gnu.org/gnu/gnubg/gnubg-release-1.08.003-sources.tar.gz.sig",
+    "bytes": 310,
+    "sha256": "eafb08a61ff7fe6ba60fce08953fc9619c1ab59fb2887d1b2d70fe647da79784",
+    "createdAt": "2024-04-28T19:58:40Z"
+  },
+  "signingKey": {
+    "path": "third_party/gnubg/keys/philippe-michel-release-key.gpg",
+    "sourceUrl": "https://ftp.gnu.org/gnu/gnu-keyring.gpg",
+    "fingerprint": "39FC530C20B9B8C627E71BAC973B63D4ECB3B8BD",
+    "primaryUid": "Philippe Michel <philippe.michel7@free.fr>",
+    "bytes": 1573,
+    "sha256": "8c2069601fc9793a25d8b8944151d96fd34b9a02612161a6c503a4d5aedd2b45"
+  },
+  "license": {
+    "spdx": "GPL-3.0-or-later",
+    "path": "LICENSES/GPL-3.0-or-later.txt",
+    "bytes": 35149,
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+  },
+  "verifiedAt": "2026-08-01",
+  "checksumProvenance": "Locally computed after successful detached-signature verification against GNU's official keyring"
+}

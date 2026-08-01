@@ -4,16 +4,21 @@ A separately hosted browser-engine endpoint for Backgammon Light. It accepts a
 single origin-checked `MessagePort`, speaks Backgammon Engine Protocol v1, and
 runs all engine decisions in a capsule-owned Worker.
 
-The current implementation is intentionally a tiny, deterministic,
-Apache-2.0 mock. It chooses the first opaque legal-turn ID supplied by the
-authoritative server, chooses `no-double`/`take` when legal, and contains no GNU
-Backgammon code or data. Its purpose is to prove the isolation and protocol
-before the GNUbg/WASM port begins.
+The active implementation is intentionally a tiny, deterministic, Apache-2.0
+mock. It chooses the first opaque legal-turn ID supplied by the authoritative
+server and chooses `no-double`/`take` when legal. Its purpose is to preserve a
+fast isolation/protocol baseline while the GNUbg/WASM backend is developed.
+
+The repository now preserves an authenticated GNU Backgammon 1.08.003 source
+archive under `third_party/gnubg/`. It is not used by the current build, copied
+to `dist/`, or served to browsers yet. See `THIRD_PARTY_NOTICES.md` and
+`third_party/gnubg/README.md` for provenance and licensing details.
 
 ## Requirements
 
 - Node.js 20.19 or newer; Node 22 LTS is recommended (`.nvmrc` is included).
 - npm
+- `gpgv`, used to authenticate the pinned GNUbg upstream archive.
 - A browser installed through Playwright for the browser suite.
 
 ## Run locally
@@ -62,9 +67,11 @@ npm run test:e2e
 ```
 
 `npm run verify` runs every non-browser check and makes a production-like build
-using the checked-in loopback-only verification configuration. The browser
-suite serves that built artifact, hosts a real parent at
-`http://localhost:3100`, embeds the capsule at port 4174 with
+using the checked-in loopback-only verification configuration. It first checks
+the pinned GNUbg archive's size, SHA-256 hash, detached signature, and exact
+signer fingerprint without accessing the user's GnuPG keyring. The browser suite
+serves the built artifact, hosts a real parent at `http://localhost:3100`,
+embeds the capsule at port 4174 with
 `sandbox="allow-scripts"`, transfers the private channel, and tests hello,
 checker play, cube play, cancellation, a second rejected bootstrap, Blob
 Worker creation, CORS, and CSP. Chromium is the current automated baseline;
@@ -100,10 +107,11 @@ the explicitly allowed private application is intentional.
 
 ## GNUbg phase
 
-GNUbg is deliberately absent. The next phase will preserve the controller,
-protocol, tests, and mock backend while adding a pinned, reproducible GNUbg
-WASM build inside the compute Worker. All GNUbg source, patches, build scripts,
-WASM, networks, license material, and exact corresponding-source archives must
-remain in this public capsule project—never in the proprietary application.
+GNUbg 1.08.003 is pinned and authenticated but deliberately absent from the
+runtime. The next phase preserves the controller, protocol, tests, and mock
+backend while adding a reproducible native headless harness, followed by a WASM
+build inside the compute Worker. All GNUbg source, patches, build scripts, WASM,
+networks, license material, and exact corresponding-source archives must remain
+in this public capsule project—never in the proprietary application.
 
 See [docs/GNUBG-ROADMAP.md](docs/GNUBG-ROADMAP.md) before starting that work.
