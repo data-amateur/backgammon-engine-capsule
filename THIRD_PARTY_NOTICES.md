@@ -13,10 +13,10 @@ Run `npm audit` and review the lockfile whenever these tools are updated.
 ## GNU Backgammon 1.08.003
 
 The repository preserves an unmodified, signed GNU Backgammon source release
-under `third_party/gnubg/upstream/` for the forthcoming engine implementation.
-GNUbg's program code is licensed under `GPL-3.0-or-later`; the complete GPL v3
-text is available at `LICENSES/GPL-3.0-or-later.txt` and inside the signed
-source archive.
+under `third_party/gnubg/upstream/` and uses it to build a minimal native
+adapter and golden-test executable. GNUbg's program code and the linked adapter
+are licensed under `GPL-3.0-or-later`; the complete GPL v3 text is available at
+`LICENSES/GPL-3.0-or-later.txt` and inside the signed source archive.
 
 Upstream project: <https://www.gnu.org/software/gnubg/>
 
@@ -26,8 +26,19 @@ components with their own attribution or license notices. Those original
 notices are retained inside the unmodified archive and must be audited before
 deciding which files enter the deployed WASM build.
 
+## GLib 2.0 (native harness only)
+
+The local native golden-test executable obtains its GLib 2.0 compiler and
+linker flags from `pkg-config` and dynamically links the system GLib library.
+GLib is licensed `LGPL-2.1-or-later`; its source project is
+<https://gitlab.gnome.org/GNOME/glib/>. GLib source or binaries are not
+vendored, copied into `dist/`, or bundled with this repository. Audit the exact
+runtime dependency and retain its applicable notices before distributing a
+native binary.
+
 The capsule shell and GPL-free mock remain under the repository's root
-Apache-2.0 license. No GNUbg code or data is currently linked into, bundled
-with, or served by the default mock runtime. A future Worker that links GNUbg
-will be distributed in compliance with GNUbg's GPL terms together with its
-complete corresponding source.
+Apache-2.0 license. GNUbg code and data are not linked into, bundled with, or
+served by the default mock browser runtime. The generated native harness is an
+ignored local build and GPL-covered test artifact. A future Worker that links
+GNUbg will be distributed in compliance with GNUbg's GPL terms together with
+its complete corresponding source.

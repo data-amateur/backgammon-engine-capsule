@@ -29,3 +29,20 @@ emitted mock Worker is self-contained and has no relative imports.
 The authoritative server still recomputes the position and accepts only a
 host-issued legal-turn ID or an offered cube action. The capsule has no game
 mutation authority and receives no authentication, user, room, or socket data.
+
+## Native GNUbg checkpoint
+
+The default Worker remains the mock. Separately, the public repository can
+authenticate and extract GNUbg into an ignored work directory, compile only its
+headless evaluator core, and link the GPL adapter and golden tests under an
+ignored build directory. Neither generated directory enters the Vite graph or
+`dist/`. Every browser build finishes with an explicit mock-only output
+allowlist and binary/source-marker audit, so a future accidental GNUbg archive,
+network, native executable, or WASM copy fails verification.
+
+The adapter accepts BEP-style absolute state through plain C types. It normalizes
+the player on roll as GNUbg board row 1, replays each supplied candidate, and
+requires the resulting position key to occur in GNUbg's own generated legal
+set before scoring. The C boundary currently accepts standard backgammon only and rejects other
+variation values. This keeps the future Worker API narrow and does not expose
+the GNUbg command parser.

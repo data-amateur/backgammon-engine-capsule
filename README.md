@@ -9,16 +9,22 @@ mock. It chooses the first opaque legal-turn ID supplied by the authoritative
 server and chooses `no-double`/`take` when legal. Its purpose is to preserve a
 fast isolation/protocol baseline while the GNUbg/WASM backend is developed.
 
-The repository now preserves an authenticated GNU Backgammon 1.08.003 source
-archive under `third_party/gnubg/`. It is not used by the current build, copied
-to `dist/`, or served to browsers yet. See `THIRD_PARTY_NOTICES.md` and
-`third_party/gnubg/README.md` for provenance and licensing details.
+The repository preserves an authenticated GNU Backgammon 1.08.003 source
+archive and now builds a minimal GPL native harness with golden tests. The
+default browser build still uses only the mock: no GNUbg code, neural-network
+data, or native output is copied to `dist/` or served yet. A post-build
+allowlist enforces that boundary. See
+`NOTICE.md`, `THIRD_PARTY_NOTICES.md`, `third_party/gnubg/README.md`,
+and `docs/GNUBG-NATIVE.md` for the mixed-license source map, provenance, build,
+and licensing details.
 
 ## Requirements
 
 - Node.js 20.19 or newer; Node 22 LTS is recommended (`.nvmrc` is included).
 - npm
 - `gpgv`, used to authenticate the pinned GNUbg upstream archive.
+- For the native GNUbg checkpoint: a C11 compiler, GNU Make, `tar`,
+  `pkg-config`, and GLib 2.0 development headers.
 - A browser installed through Playwright for the browser suite.
 
 ## Run locally
@@ -66,11 +72,18 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-`npm run verify` runs every non-browser check and makes a production-like build
-using the checked-in loopback-only verification configuration. It first checks
-the pinned GNUbg archive's size, SHA-256 hash, detached signature, and exact
-signer fingerprint without accessing the user's GnuPG keyring. The browser suite
-serves the built artifact, hosts a real parent at `http://localhost:3100`,
+`npm run verify` runs every non-browser check, including the native GNUbg
+golden suite, and makes a production-like browser build using the checked-in
+loopback-only verification configuration. It checks the pinned GNUbg archive's
+size, SHA-256 hash, detached signature, and exact signer fingerprint without
+accessing the user's GnuPG keyring. The native suite extracts that authenticated
+archive into an ignored work directory and performs a clean headless rebuild.
+The native build records its ambient compiler, target, flags, Make,
+`pkg-config`, and GLib versions in ignored `build-info.json`; it is repeatable
+but not yet a bit-for-bit reproducible build because those inputs are not
+pinned. The browser build also rejects any output outside the audited mock-only
+allowlist. The browser suite serves the built artifact, hosts a real parent at
+`http://localhost:3100`,
 embeds the capsule at port 4174 with
 `sandbox="allow-scripts"`, transfers the private channel, and tests hello,
 checker play, cube play, cancellation, a second rejected bootstrap, Blob
@@ -107,11 +120,18 @@ the explicitly allowed private application is intentional.
 
 ## GNUbg phase
 
-GNUbg 1.08.003 is pinned and authenticated but deliberately absent from the
-runtime. The next phase preserves the controller, protocol, tests, and mock
-backend while adding a reproducible native headless harness, followed by a WASM
-build inside the compute Worker. All GNUbg source, patches, build scripts, WASM,
-networks, license material, and exact corresponding-source archives must remain
-in this public capsule project—never in the proprietary application.
+GNUbg 1.08.003 is pinned, authenticated, and exercised through a clean,
+minimal native harness. The harness translates BEP-style absolute boards,
+independently matches supplied turns against GNUbg's complete legal set, and
+scores candidates through a typed C API. It remains deliberately absent from
+the browser runtime.
 
-See [docs/GNUBG-ROADMAP.md](docs/GNUBG-ROADMAP.md) before starting that work.
+The next increment adds typed cube analysis and completes native BEP fixture
+coverage. After that, the same public GPL-side boundary can be compiled to
+single-threaded modularized WASM inside the compute Worker. All GNUbg source,
+patches, build scripts, WASM, networks, license material, and exact
+corresponding-source archives must remain in this public capsule project—never
+in the proprietary application.
+
+See [the native harness guide](docs/GNUBG-NATIVE.md) and
+[the roadmap](docs/GNUBG-ROADMAP.md) before continuing that work.

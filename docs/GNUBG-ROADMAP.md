@@ -13,20 +13,27 @@ integration.
 2. **Completed.** Vendor the complete exact source and record archive, signature,
    tag commit, locally computed SHA-256 provenance, signer key, and license.
    See `third_party/gnubg/source-lock.json`.
-3. Build a minimal native headless harness and golden tests first.
-4. Exclude desktop UI, audio, database, Python, networking, and unrelated
-   command features. Do not expose GNUbg's arbitrary command parser.
-5. Expose a narrow typed C API for initialization, candidate evaluation, cube
-   analysis, settings, reset, and disposal.
-6. Translate the absolute BEP position and independently apply every supplied
-   legal turn; current host turns do not include `resultingBoard`.
+3. **Completed.** Build a minimal native headless harness and golden tests
+   first. See `GNUBG-NATIVE.md`.
+4. **Completed for the native checkpoint.** Exclude desktop UI, audio,
+   database, Python, networking, and unrelated command features. The native
+   link boundary does not expose GNUbg's arbitrary command parser.
+5. **In progress.** The typed C API now covers one-shot initialization,
+   candidate evaluation, five settings, cache reset, and disposal. Add typed
+   cube analysis before beginning the WASM bridge.
+6. **In progress.** The native adapter translates absolute BEP-style positions,
+   independently replays every supplied legal turn, and matches it to GNUbg's
+   generated legal set. The future TypeScript/WASM bridge must additionally
+   compare optional `resultingBoard` values; current host turns omit that
+   field.
 7. Pin Emscripten and start with single-threaded modularized output inside the
    existing Worker. Do not require SharedArrayBuffer/pthreads for v1.
 8. Fetch WASM/networks through explicit CORS-enabled URLs; do not resolve them
    relative to the Blob Worker URL.
 9. If synchronous native search cannot be interrupted, keep cancellation in
    the iframe controller, terminate the compute Worker, suppress stale output,
-   and recreate a clean runtime.
+   and recreate a clean runtime. Define measured candidate/time limits before
+   exposing the two-ply `maximum` preset.
 10. Publish measured download/memory/startup/decision figures and honest BEP
     capabilities.
 11. Include complete corresponding source, every patch/build script, license

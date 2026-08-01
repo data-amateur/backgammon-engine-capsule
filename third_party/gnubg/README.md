@@ -50,3 +50,14 @@ notice.
 
 No GNUbg source, weights, build output, or patches may be copied into the
 proprietary Backgammon Light repository or deployment.
+
+## Native checkpoint
+
+Run `npm run test:gnubg-native` from the capsule repository root. It verifies
+the archive again, replaces the ignored extraction with a fresh copy, builds a
+headless evaluator harness, and runs mapping, legality, and scoring fixtures.
+See `docs/GNUBG-NATIVE.md` for the exact source boundary and prerequisites.
+
+The native adapter and executable link GNUbg and are GPL-3.0-or-later. The
+default browser mock remains separate and does not include these generated
+artifacts.

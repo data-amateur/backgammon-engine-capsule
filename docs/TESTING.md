@@ -24,7 +24,11 @@ Before a mock release, also run the manual private-application test described
 in the README. Verify a second game in the same match reuses the loaded capsule
 and does not show another preload/fallback cycle.
 
-When GNUbg is added, preserve all mock tests and add native-versus-WASM golden
-positions, both colors, bar entry, hits, bearing off, doubles, cube ownership,
-money/match/Crawford contexts, asset failures, Worker termination/recreation,
-and cold/warm startup measurements.
+The native GNUbg checkpoint now covers authenticated clean rebuilds, both-color
+board mapping, bar entry and hits, an illegal oversize bear-off, candidate
+legality, money and match scoring, cube ownership, Crawford/one-point metadata
+guards, the two-ply preset, cache reset, and disposal. Preserve all mock tests.
+Before the WASM bridge, add exact bear-off, higher-die/partial-turn, doubles,
+Jacoby, post-Crawford, and typed cube-decision fixtures. Then run the same
+golden positions against native and WASM and add asset failures, Worker
+termination/recreation, and cold/warm startup measurements.
