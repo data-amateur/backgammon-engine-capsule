@@ -32,6 +32,10 @@ const sourceRoot = path.join(
   "third_party/gnubg/work",
   `gnubg-${sourceLock.version}`,
 );
+const generatedRoot = path.join(
+  repositoryRoot,
+  "build/gnubg/generated",
+);
 const buildRoot = path.join(
   repositoryRoot,
   sanitized ? "build/gnubg/native-sanitized" : "build/gnubg/native",
@@ -151,6 +155,7 @@ const buildEnvironment = {
 };
 
 run(process.execPath, [path.join(repositoryRoot, "scripts/prepare-gnubg-source.mjs")]);
+run(process.execPath, [path.join(repositoryRoot, "scripts/generate-gnubg-met.mjs")]);
 const preparedSource = JSON.parse(
   readFileSync(path.join(repositoryRoot, "third_party/gnubg/work/prepared-source.json"), "utf8"),
 );
@@ -231,6 +236,8 @@ const harnessSources = [
   "gnubg_wasm_marshal.c",
   "gnubg_wasm_bridge.c",
   "gnubg_wasm_test_support.c",
+  "gnubg_init_failure_test.c",
+  "gnubg_met_parity_dump.c",
   "gnubg_golden_test.c",
   "gnubg_wasm_public_smoke_test.c",
 ];
@@ -247,9 +254,53 @@ for (let index = 0; index < harnessSources.length; index++) {
   ]);
 }
 
+/*
+ * Compile both parity variants with this exact flag set. The Automake object
+ * adds -ffast-math, which can change extended-table values by one ULP and
+ * would compare compiler modes instead of XML-versus-embedded initialization.
+ */
+const xmlMatchEquityObject = path.join(
+  buildRoot,
+  "matchequity-xml-parity.o",
+);
+const embeddedMatchEquityObject = path.join(
+  buildRoot,
+  "matchequity-embedded.o",
+);
+run(compiler, [
+  ...commonCompileFlags,
+  "-c",
+  path.join(sourceRoot, "matchequity.c"),
+  "-o",
+  xmlMatchEquityObject,
+]);
+run(compiler, [
+  ...commonCompileFlags,
+  `-I${generatedRoot}`,
+  "-DBGC_EMBEDDED_KAZAROSS_MET=1",
+  "-c",
+  path.join(sourceRoot, "matchequity.c"),
+  "-o",
+  embeddedMatchEquityObject,
+]);
+
 const objectBySource = new Map(
   harnessSources.map((source, index) => [source, harnessObjects[index]]),
 );
+const coreObjectFiles = coreObjects.map((object) =>
+  path.join(buildRoot, object),
+);
+const parityCoreObjectFiles = coreObjects
+  .filter((object) => object !== "matchequity.o")
+  .map((object) => path.join(buildRoot, object));
+const xmlParityCoreObjectFiles = [
+  ...parityCoreObjectFiles,
+  xmlMatchEquityObject,
+];
+const embeddedCoreObjectFiles = [
+  ...parityCoreObjectFiles,
+  embeddedMatchEquityObject,
+];
 const runtimeSources = [
   "gnubg_adapter.c",
   "gnubg_wasm_abi.c",
@@ -257,6 +308,20 @@ const runtimeSources = [
   "gnubg_wasm_bridge.c",
 ];
 const executableSpecifications = [
+  {
+    file: path.join(buildRoot, "gnubg-met-xml-dump"),
+    sources: ["gnubg_met_parity_dump.c"],
+    coreObjectFiles: xmlParityCoreObjectFiles,
+  },
+  {
+    file: path.join(buildRoot, "gnubg-met-embedded-dump"),
+    sources: ["gnubg_met_parity_dump.c"],
+    coreObjectFiles: embeddedCoreObjectFiles,
+  },
+  {
+    file: path.join(buildRoot, "gnubg-native-init-failure"),
+    sources: ["gnubg_adapter.c", "gnubg_init_failure_test.c"],
+  },
   {
     file: path.join(buildRoot, "gnubg-native-golden"),
     sources: [
@@ -276,7 +341,7 @@ for (const specification of executableSpecifications) {
     "-o",
     specification.file,
     ...specification.sources.map((source) => objectBySource.get(source)),
-    ...coreObjects.map((object) => path.join(buildRoot, object)),
+    ...(specification.coreObjectFiles ?? coreObjectFiles),
     path.join(buildRoot, "lib/.libs/libevent.a"),
     ...glibLibraries,
     "-lm",
@@ -294,11 +359,16 @@ writeFileSync(
       buildMode: sanitized ? "asan-ubsan" : "release-test",
       configureFlags,
       coreObjects,
+      xmlMatchEquityObject: path.basename(xmlMatchEquityObject),
+      embeddedMatchEquityObject: path.basename(embeddedMatchEquityObject),
       harnessSources,
       harnessObjects: harnessObjects.map((object) => path.basename(object)),
       executables: executableSpecifications.map((specification) => ({
         file: path.basename(specification.file),
         sources: specification.sources,
+        coreObjects: (
+          specification.coreObjectFiles ?? coreObjectFiles
+        ).map((object) => path.basename(object)),
       })),
       host: {
         platform: process.platform,

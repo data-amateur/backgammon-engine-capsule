@@ -26,13 +26,17 @@ jobs:
 
   wasm-abi:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Install GNUbg source preparation prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gpgv patch
       - run: npm ci
       - name: Install pinned Emscripten SDK
         run: |
@@ -44,10 +48,11 @@ jobs:
           fi
           "${RUNNER_TEMP}/emsdk-6.0.5/emsdk" install 6.0.5
           "${RUNNER_TEMP}/emsdk-6.0.5/emsdk" activate 6.0.5
-      - name: Build and test wasm32 ABI
+      - name: Build and test wasm32 ABI and GNUbg evaluator
         run: |
           source "${RUNNER_TEMP}/emsdk-6.0.5/emsdk_env.sh"
           npm run test:wasm-abi
+          npm run test:gnubg-wasm
 
   native-sanitizers:
     runs-on: ubuntu-latest

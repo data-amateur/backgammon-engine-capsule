@@ -1,0 +1,832 @@
+diff --git a/bearoff.c b/bearoff.c
+index ca21461..7064209 100644
+--- a/bearoff.c
++++ b/bearoff.c
+@@ -745,8 +745,12 @@ ReadIntoMemory(bearoffcontext * pbc)
+     GError *error = NULL;
+     pbc->map = g_mapped_file_new(pbc->szFilename, FALSE, &error);
+     if (!pbc->map) {
+-        g_printerr(_("%s: Failed to map bearoff database %s\n"), pbc->szFilename, error->message);
+-        g_error_free(error);
++        const char *message = error && error->message ?
++            error->message : _("unknown mapping error");
++        g_printerr(_("%s: Failed to map bearoff database %s\n"),
++                   pbc->szFilename, message);
++        if (error)
++            g_error_free(error);
+         return NULL;
+     }
+     pbc->p = (unsigned char *) g_mapped_file_get_contents(pbc->map);
+@@ -796,7 +800,9 @@ BearoffInit(const char *szFilename, const unsigned int bo, void (*p) (unsigned i
+     bearoffcontext *pbc;
+     char sz[41];
+ 
+-    pbc = g_new0(bearoffcontext, 1);
++    pbc = g_try_new0(bearoffcontext, 1);
++    if (!pbc)
++        return NULL;
+ 
+     if (bo & BO_HEURISTIC) {
+         pbc->bt = BEAROFF_ONESIDED;
+@@ -804,6 +810,10 @@ BearoffInit(const char *szFilename, const unsigned int bo, void (*p) (unsigned i
+         pbc->nChequers = HEURISTIC_C;
+         pbc->fHeuristic = TRUE;
+         pbc->p = HeuristicDatabase(p);
++        if (!pbc->p) {
++            g_free(pbc);
++            return NULL;
++        }
+         return pbc;
+     }
+ 
+diff --git a/eval.c b/eval.c
+index a3695c5..49fcd0c 100644
+--- a/eval.c
++++ b/eval.c
+@@ -490,7 +490,6 @@ DestroyWeights(void)
+ extern int
+ EvalShutdown(void)
+ {
+-
+     int i;
+ 
+     /* close bearoff databases */
+@@ -499,8 +498,11 @@ EvalShutdown(void)
+     BearoffClose(pbc2);
+     BearoffClose(pbcOS);
+     BearoffClose(pbcTS);
+-    for (i = 0; i < 3; ++i)
++    pbc1 = pbc2 = pbcOS = pbcTS = NULL;
++    for (i = 0; i < 3; ++i) {
+         BearoffClose(apbcHyper[i]);
++        apbcHyper[i] = NULL;
++    }
+ 
+     /* destroy neural nets */
+ 
+@@ -510,9 +512,10 @@ EvalShutdown(void)
+ 
+     CacheDestroy(&cEval);
+     CacheDestroy(&cpEval);
++    memset(&cEval, 0, sizeof(cEval));
++    memset(&cpEval, 0, sizeof(cpEval));
+ 
+     return 0;
+-
+ }
+ 
+ static int
+@@ -575,11 +578,67 @@ weights_failed(char *filename, FILE * weights)
+     return 0;
+ }
+ 
+-extern void
+-EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pfProgress) (unsigned int))
++typedef struct {
++    unsigned int input;
++    unsigned int hidden;
++    unsigned int output;
++} network_shape;
++
++static eval_init_status
++LoadWeights(FILE * weights, const int binary)
++{
++    static const network_shape shapes[] = {
++        { NUM_INPUTS, 128, NUM_OUTPUTS },
++        { NUM_RACE_INPUTS, 128, NUM_OUTPUTS },
++        { NUM_INPUTS, 128, NUM_OUTPUTS },
++        { NUM_PRUNING_INPUTS, 16, NUM_OUTPUTS },
++        { NUM_PRUNING_INPUTS, 16, NUM_OUTPUTS },
++        { NUM_PRUNING_INPUTS, 8, NUM_OUTPUTS }
++    };
++    neuralnet loaded[6] = { { 0 } };
++    neuralnet *targets[] = {
++        &nnContact, &nnRace, &nnCrashed,
++        &nnpContact, &nnpCrashed, &nnpRace
++    };
++    size_t i;
++    int result;
++
++    for (i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++) {
++        if (binary)
++            result = NeuralNetLoadBinaryValidated(
++                &loaded[i], weights, shapes[i].input,
++                shapes[i].hidden, shapes[i].output);
++        else
++            result = NeuralNetLoadValidated(
++                &loaded[i], weights, shapes[i].input,
++                shapes[i].hidden, shapes[i].output);
++
++        if (result) {
++            size_t cleanup;
++            for (cleanup = 0;
++                 cleanup < sizeof(loaded) / sizeof(loaded[0]);
++                 cleanup++)
++                NeuralNetDestroy(&loaded[cleanup]);
++            return result == -2 ?
++                EVAL_INIT_WEIGHTS_SHAPE_ERROR :
++                EVAL_INIT_WEIGHTS_ERROR;
++        }
++    }
++
++    DestroyWeights();
++    for (i = 0; i < sizeof(loaded) / sizeof(loaded[0]); i++) {
++        *targets[i] = loaded[i];
++        memset(&loaded[i], 0, sizeof(loaded[i]));
++    }
++    return EVAL_INIT_OK;
++}
++
++extern eval_init_status
++BGC_EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pfProgress) (unsigned int))
+ {
+     FILE *pfWeights = NULL;
+     int i, fReadWeights = FALSE;
++    eval_init_status weights_status = EVAL_INIT_WEIGHTS_ERROR;
+     static int fInitialised = FALSE;
+ #if defined(USE_SIMD_INSTRUCTIONS)
+     int simderror = TRUE;
+@@ -614,18 +673,28 @@ EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pf
+             outputerrf(_
+                        ("\nThis version of GNU Backgammon is compiled with SSE support but this machine does not support SSE\n"));
+ #endif
+-            exit(EXIT_FAILURE);
++            return EVAL_INIT_PLATFORM_ERROR;
+         }
+ #endif
++#if defined(BGC_EVAL_CACHE_ENTRIES)
++        cCache = BGC_EVAL_CACHE_ENTRIES;
++#else
+         cCache = 0x1 << CACHE_SIZE_DEFAULT;
++#endif
+         if (CacheCreate(&cEval, cCache)) {
+             PrintError(_("Evaluation cache allocation failed"));
+-            return;
++            return EVAL_INIT_CACHE_ERROR;
+         }
+ 
++#if defined(BGC_PRUNE_CACHE_ENTRIES)
++        if (CacheCreate(&cpEval, BGC_PRUNE_CACHE_ENTRIES)) {
++#else
+         if (CacheCreate(&cpEval, 0x1 << 16)) {
++#endif
+             PrintError(_("Evaluation cache allocation failed"));
+-            return;
++            CacheDestroy(&cEval);
++            memset(&cEval, 0, sizeof(cEval));
++            return EVAL_INIT_CACHE_ERROR;
+         }
+ 
+         ComputeTable();
+@@ -650,6 +719,9 @@ EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pf
+         if (!pbc1)
+             pbc1 = BearoffInit(NULL, BO_HEURISTIC, pfProgress);
+ 
++        if (!pbc1)
++            return EVAL_INIT_RESOURCE_ERROR;
++
+         /* read two-sided db from gnubg.bd */
+         gnubg_bearoff = BuildFilename("gnubg_ts0.bd");
+         pbc2 = BearoffInit(gnubg_bearoff, BO_IN_MEMORY | BO_MUST_BE_TWO_SIDED, NULL);
+@@ -690,15 +762,10 @@ EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pf
+     if (szWeightsBinary) {
+         pfWeights = g_fopen(szWeightsBinary, "rb");
+         if (!binary_weights_failed(szWeightsBinary, pfWeights)) {
+-            if (!fReadWeights && !(fReadWeights =
+-                                   !NeuralNetLoadBinary(&nnContact, pfWeights) &&
+-                                   !NeuralNetLoadBinary(&nnRace, pfWeights) &&
+-                                   !NeuralNetLoadBinary(&nnCrashed, pfWeights) &&
+-                                   !NeuralNetLoadBinary(&nnpContact, pfWeights) &&
+-                                   !NeuralNetLoadBinary(&nnpCrashed, pfWeights) &&
+-                                   !NeuralNetLoadBinary(&nnpRace, pfWeights))) {
++            weights_status = LoadWeights(pfWeights, TRUE);
++            fReadWeights = weights_status == EVAL_INIT_OK;
++            if (!fReadWeights)
+                 perror(szWeightsBinary);
+-            }
+         }
+         if (pfWeights)
+             fclose(pfWeights);
+@@ -709,13 +776,9 @@ EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pf
+         pfWeights = g_fopen(szWeights, "r");
+         if (!weights_failed(szWeights, pfWeights)) {
+             setlocale(LC_ALL, "C");
+-            if (!(fReadWeights =
+-                  !NeuralNetLoad(&nnContact, pfWeights) &&
+-                  !NeuralNetLoad(&nnRace, pfWeights) &&
+-                  !NeuralNetLoad(&nnCrashed, pfWeights) &&
+-                  !NeuralNetLoad(&nnpContact, pfWeights) &&
+-                  !NeuralNetLoad(&nnpCrashed, pfWeights) && !NeuralNetLoad(&nnpRace, pfWeights)
+-                ))
++            weights_status = LoadWeights(pfWeights, FALSE);
++            fReadWeights = weights_status == EVAL_INIT_OK;
++            if (!fReadWeights)
+                 perror(szWeights);
+             setlocale(LC_ALL, "");
+         }
+@@ -724,21 +787,20 @@ EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pf
+         pfWeights = NULL;
+     }
+ 
+-    g_assert(fReadWeights);
+-
+-    g_assert(nnContact.cInput == NUM_INPUTS && nnContact.cOutput == NUM_OUTPUTS);
+-    g_assert(nnCrashed.cInput == NUM_INPUTS && nnCrashed.cOutput == NUM_OUTPUTS);
+-    g_assert(nnRace.cInput == NUM_RACE_INPUTS && nnRace.cOutput == NUM_OUTPUTS);
+-
+-    g_assert(nnpContact.cInput == NUM_PRUNING_INPUTS && nnpContact.cOutput == NUM_OUTPUTS);
+-    g_assert(nnpCrashed.cInput == NUM_PRUNING_INPUTS && nnpCrashed.cOutput == NUM_OUTPUTS);
+-    g_assert(nnpRace.cInput == NUM_PRUNING_INPUTS && nnpRace.cOutput == NUM_OUTPUTS);
+-
+     if (!fReadWeights) {
+         outputerrf(_("GNU Backgammon couldn't find a weights file."));
+-        exit(EXIT_FAILURE);
++        return weights_status;
+     }
+ 
++    return EVAL_INIT_OK;
++}
++
++extern void
++EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pfProgress) (unsigned int))
++{
++    if (BGC_EvalInitialise(szWeights, szWeightsBinary,
++                           fNoBearoff, pfProgress) != EVAL_INIT_OK)
++        exit(EXIT_FAILURE);
+ }
+ 
+ /* Calculates inputs for any contact position, for one player only. */
+diff --git a/eval.h b/eval.h
+index 93fa843..f1fe67d 100644
+--- a/eval.h
++++ b/eval.h
+@@ -334,6 +334,15 @@ extern classevalfunc acef[N_CLASSES];
+ #define CACHE_SIZE_DEFAULT 19
+ #define CACHE_SIZE_GUIMAX 23
+ 
++typedef enum {
++    EVAL_INIT_OK = 0,
++    EVAL_INIT_PLATFORM_ERROR,
++    EVAL_INIT_CACHE_ERROR,
++    EVAL_INIT_WEIGHTS_ERROR,
++    EVAL_INIT_WEIGHTS_SHAPE_ERROR,
++    EVAL_INIT_RESOURCE_ERROR
++} eval_init_status;
++
+ #define CFMONEY(arEquity,pci) \
+    ( ( (pci)->fCubeOwner == -1 ) ? arEquity[ 2 ] : \
+    ( ( (pci)->fCubeOwner == (pci)->fMove ) ? arEquity[ 1 ] : arEquity[ 3 ] ) )
+@@ -343,7 +352,11 @@ extern classevalfunc acef[N_CLASSES];
+      ( ( (pci)->fJacoby ) ? arEquity[ 2 ] : arEquity[ 1 ] ) : \
+      ( ( (pci)->fCubeOwner == (pci)->fMove ) ? arEquity[ 0 ] : arEquity[ 3 ] ) )
+ 
+-extern void EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff, void (*pfProgress) (unsigned int));
++extern void EvalInitialise(char *szWeights, char *szWeightsBinary, int fNoBearoff,
++                           void (*pfProgress) (unsigned int));
++extern eval_init_status BGC_EvalInitialise(char *szWeights, char *szWeightsBinary,
++                                          int fNoBearoff,
++                                          void (*pfProgress) (unsigned int));
+ 
+ extern int EvalShutdown(void);
+ 
+diff --git a/lib/neuralnet.c b/lib/neuralnet.c
+index c60d852..91fb686 100644
+--- a/lib/neuralnet.c
++++ b/lib/neuralnet.c
+@@ -23,6 +23,8 @@
+ #include "common.h"
+ #include <glib.h>
+ #include <errno.h>
++#include <float.h>
++#include <stdint.h>
+ #include <stdio.h>
+ #include <string.h>
+ #include <time.h>
+@@ -32,38 +34,68 @@
+ #include "simd.h"
+ #include "sigmoid.h"
+ 
++_Static_assert(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
++               FLT_MANT_DIG == 24 && FLT_MIN_EXP == -125 &&
++               FLT_MAX_EXP == 128,
++               "GNUbg weights require IEEE-754 binary32 floats");
++
+ static int
+-NeuralNetCreate(neuralnet * pnn, unsigned int cInput, unsigned int cHidden,
+-                unsigned int cOutput, float rBetaHidden, float rBetaOutput)
++NeuralNetFloatCountBytes(const unsigned int first,
++                         const unsigned int second,
++                         size_t *bytes)
+ {
+-    pnn->cInput = cInput;
+-    pnn->cHidden = cHidden;
+-    pnn->cOutput = cOutput;
+-    pnn->rBetaHidden = rBetaHidden;
+-    pnn->rBetaOutput = rBetaOutput;
+-    pnn->nTrained = 0;
+-
+-    if ((pnn->arHiddenWeight = sse_malloc(cHidden * cInput * sizeof(float))) == NULL)
+-        return -1;
++    const size_t first_size = (size_t) first;
++    const size_t second_size = (size_t) second;
++    size_t count;
+ 
+-    if ((pnn->arOutputWeight = sse_malloc(cOutput * cHidden * sizeof(float))) == NULL) {
+-        sse_free(pnn->arHiddenWeight);
++    if (!first || !second || second_size > SIZE_MAX / first_size) {
++        errno = EOVERFLOW;
+         return -1;
+     }
+-
+-    if ((pnn->arHiddenThreshold = sse_malloc(cHidden * sizeof(float))) == NULL) {
+-        sse_free(pnn->arOutputWeight);
+-        sse_free(pnn->arHiddenWeight);
++    count = first_size * second_size;
++    if (count > SIZE_MAX / sizeof(float)) {
++        errno = EOVERFLOW;
+         return -1;
+     }
++    *bytes = count * sizeof(float);
++    return 0;
++}
+ 
+-    if ((pnn->arOutputThreshold = sse_malloc(cOutput * sizeof(float))) == NULL) {
+-        sse_free(pnn->arHiddenThreshold);
+-        sse_free(pnn->arOutputWeight);
+-        sse_free(pnn->arHiddenWeight);
++static int
++NeuralNetCreate(neuralnet * pnn, unsigned int cInput, unsigned int cHidden,
++                unsigned int cOutput, float rBetaHidden, float rBetaOutput)
++{
++    neuralnet candidate = { 0 };
++    size_t hidden_weight_bytes;
++    size_t output_weight_bytes;
++    size_t hidden_threshold_bytes;
++    size_t output_threshold_bytes;
++
++    if (!pnn ||
++        NeuralNetFloatCountBytes(cHidden, cInput, &hidden_weight_bytes) ||
++        NeuralNetFloatCountBytes(cOutput, cHidden, &output_weight_bytes) ||
++        NeuralNetFloatCountBytes(cHidden, 1, &hidden_threshold_bytes) ||
++        NeuralNetFloatCountBytes(cOutput, 1, &output_threshold_bytes))
++        return -1;
++
++    candidate.cInput = cInput;
++    candidate.cHidden = cHidden;
++    candidate.cOutput = cOutput;
++    candidate.rBetaHidden = rBetaHidden;
++    candidate.rBetaOutput = rBetaOutput;
++
++    candidate.arHiddenWeight = sse_malloc(hidden_weight_bytes);
++    candidate.arOutputWeight = sse_malloc(output_weight_bytes);
++    candidate.arHiddenThreshold = sse_malloc(hidden_threshold_bytes);
++    candidate.arOutputThreshold = sse_malloc(output_threshold_bytes);
++
++    if (!candidate.arHiddenWeight || !candidate.arOutputWeight ||
++        !candidate.arHiddenThreshold || !candidate.arOutputThreshold) {
++        NeuralNetDestroy(&candidate);
+         return -1;
+     }
+ 
++    *pnn = candidate;
+     return 0;
+ }
+ 
+@@ -261,79 +293,227 @@ NeuralNetEvaluate(const neuralnet * pnn, float arInput[], float arOutput[], NNSt
+ }
+ #endif
+ 
+-extern int
+-NeuralNetLoad(neuralnet * pnn, FILE * pf)
++static int
++NeuralNetFloatIsFinite(const float value)
+ {
++    uint32_t bits;
++
++    memcpy(&bits, &value, sizeof(bits));
++    return (bits & UINT32_C(0x7f800000)) != UINT32_C(0x7f800000);
++}
++
++static int
++NeuralNetDimensionsMatch(const unsigned int cInput,
++                         const unsigned int cHidden,
++                         const unsigned int cOutput,
++                         const unsigned int expectedInput,
++                         const unsigned int expectedHidden,
++                         const unsigned int expectedOutput)
++{
++    return (!expectedInput || cInput == expectedInput) &&
++           (!expectedHidden || cHidden == expectedHidden) &&
++           (!expectedOutput || cOutput == expectedOutput);
++}
++
++static int
++NeuralNetReadTextFloats(FILE * pf, float *values, const size_t count)
++{
++    size_t i;
++
++    for (i = 0; i < count; i++)
++        if (fscanf(pf, "%f", &values[i]) != 1 ||
++            !NeuralNetFloatIsFinite(values[i])) {
++            errno = EINVAL;
++            return -1;
++        }
++    return 0;
++}
++
++static int
++NeuralNetReadBinaryFloats(FILE * pf, float *values, const size_t count)
++{
++    size_t i;
++
++    if (fread(values, sizeof(*values), count, pf) != count)
++        return -1;
++    for (i = 0; i < count; i++)
++        if (!NeuralNetFloatIsFinite(values[i])) {
++            errno = EINVAL;
++            return -1;
++        }
++    return 0;
++}
+ 
+-    unsigned int i;
+-    float *pr;
++static int
++NeuralNetLoadTextInternal(neuralnet * pnn, FILE * pf,
++                          const unsigned int expectedInput,
++                          const unsigned int expectedHidden,
++                          const unsigned int expectedOutput)
++{
++    neuralnet loaded = { 0 };
++    unsigned int cInput;
++    unsigned int cHidden;
++    unsigned int cOutput;
++    float rBetaHidden;
++    float rBetaOutput;
+     char dummy[16];
++    size_t hidden_weight_count;
++    size_t output_weight_count;
++    int result = -1;
+ 
+-    if (fscanf(pf, "%u %u %u %15s %f %f\n", &pnn->cInput, &pnn->cHidden,
+-               &pnn->cOutput, dummy, &pnn->rBetaHidden,
+-               &pnn->rBetaOutput) < 5 || pnn->cInput < 1 ||
+-        pnn->cHidden < 1 || pnn->cOutput < 1 || pnn->rBetaHidden <= 0.0f || pnn->rBetaOutput <= 0.0f) {
++    if (!pnn || !pf) {
+         errno = EINVAL;
+         return -1;
+     }
+ 
+-    if (NeuralNetCreate(pnn, pnn->cInput, pnn->cHidden, pnn->cOutput, pnn->rBetaHidden, pnn->rBetaOutput))
++    if (fscanf(pf, "%u %u %u %15s %f %f", &cInput, &cHidden,
++               &cOutput, dummy, &rBetaHidden, &rBetaOutput) != 6 ||
++        cInput < 1 || cHidden < 1 || cOutput < 1 ||
++        !NeuralNetFloatIsFinite(rBetaHidden) ||
++        !NeuralNetFloatIsFinite(rBetaOutput) ||
++        rBetaHidden <= 0.0f || rBetaOutput <= 0.0f) {
++        errno = EINVAL;
+         return -1;
++    }
+ 
+-    pnn->nTrained = 1;
+-
+-    for (i = pnn->cInput * pnn->cHidden, pr = pnn->arHiddenWeight; i; i--)
+-        if (fscanf(pf, "%f\n", pr++) < 1)
+-            return -1;
+-
+-    for (i = pnn->cHidden * pnn->cOutput, pr = pnn->arOutputWeight; i; i--)
+-        if (fscanf(pf, "%f\n", pr++) < 1)
+-            return -1;
++    if (!NeuralNetDimensionsMatch(cInput, cHidden, cOutput,
++                                  expectedInput, expectedHidden,
++                                  expectedOutput)) {
++        errno = EINVAL;
++        return -2;
++    }
+ 
+-    for (i = pnn->cHidden, pr = pnn->arHiddenThreshold; i; i--)
+-        if (fscanf(pf, "%f\n", pr++) < 1)
+-            return -1;
++    if (NeuralNetFloatCountBytes(cInput, cHidden, &hidden_weight_count) ||
++        NeuralNetFloatCountBytes(cHidden, cOutput, &output_weight_count))
++        return -1;
++    hidden_weight_count /= sizeof(float);
++    output_weight_count /= sizeof(float);
+ 
+-    for (i = pnn->cOutput, pr = pnn->arOutputThreshold; i; i--)
+-        if (fscanf(pf, "%f\n", pr++) < 1)
+-            return -1;
++    if (NeuralNetCreate(&loaded, cInput, cHidden, cOutput,
++                        rBetaHidden, rBetaOutput))
++        return -1;
++    loaded.nTrained = 1;
++
++    if (NeuralNetReadTextFloats(pf, loaded.arHiddenWeight,
++                                hidden_weight_count) ||
++        NeuralNetReadTextFloats(pf, loaded.arOutputWeight,
++                                output_weight_count) ||
++        NeuralNetReadTextFloats(pf, loaded.arHiddenThreshold, cHidden) ||
++        NeuralNetReadTextFloats(pf, loaded.arOutputThreshold, cOutput))
++        goto done;
++
++    *pnn = loaded;
++    memset(&loaded, 0, sizeof(loaded));
++    result = 0;
++
++done:
++    NeuralNetDestroy(&loaded);
++    return result;
++}
+ 
+-    return 0;
++extern int
++NeuralNetLoad(neuralnet * pnn, FILE * pf)
++{
++    return NeuralNetLoadTextInternal(pnn, pf, 0, 0, 0);
+ }
+ 
+ extern int
+-NeuralNetLoadBinary(neuralnet * pnn, FILE * pf)
++NeuralNetLoadValidated(neuralnet * pnn, FILE * pf,
++                       const unsigned int expectedInput,
++                       const unsigned int expectedHidden,
++                       const unsigned int expectedOutput)
+ {
++    return NeuralNetLoadTextInternal(pnn, pf, expectedInput,
++                                     expectedHidden, expectedOutput);
++}
+ 
++static int
++NeuralNetLoadBinaryInternal(neuralnet * pnn, FILE * pf,
++                            const unsigned int expectedInput,
++                            const unsigned int expectedHidden,
++                            const unsigned int expectedOutput)
++{
++    neuralnet loaded = { 0 };
++    unsigned int cInput;
++    unsigned int cHidden;
++    unsigned int cOutput;
++    float rBetaHidden;
++    float rBetaOutput;
+     int dummy;
++    size_t hidden_weight_count;
++    size_t output_weight_count;
++    int result = -1;
+ 
+-#define FREAD( p, c ) \
+-    if ( fread( (p), sizeof( *(p) ), (c), pf ) < (unsigned int)(c) ) return -1
++    if (!pnn || !pf) {
++        errno = EINVAL;
++        return -1;
++    }
+ 
+-    FREAD(&pnn->cInput, 1);
+-    FREAD(&pnn->cHidden, 1);
+-    FREAD(&pnn->cOutput, 1);
+-    FREAD(&dummy, 1);
+-    FREAD(&pnn->rBetaHidden, 1);
+-    FREAD(&pnn->rBetaOutput, 1);
++    if (fread(&cInput, sizeof(cInput), 1, pf) != 1 ||
++        fread(&cHidden, sizeof(cHidden), 1, pf) != 1 ||
++        fread(&cOutput, sizeof(cOutput), 1, pf) != 1 ||
++        fread(&dummy, sizeof(dummy), 1, pf) != 1 ||
++        fread(&rBetaHidden, sizeof(rBetaHidden), 1, pf) != 1 ||
++        fread(&rBetaOutput, sizeof(rBetaOutput), 1, pf) != 1)
++        return -1;
+ 
+-    if (pnn->cInput < 1 || pnn->cHidden < 1 || pnn->cOutput < 1 || pnn->rBetaHidden <= 0.0f || pnn->rBetaOutput <= 0.0f) {
++    if (cInput < 1 || cHidden < 1 || cOutput < 1 ||
++        !NeuralNetFloatIsFinite(rBetaHidden) ||
++        !NeuralNetFloatIsFinite(rBetaOutput) ||
++        rBetaHidden <= 0.0f || rBetaOutput <= 0.0f) {
+         errno = EINVAL;
+         return -1;
+     }
+ 
+-    if (NeuralNetCreate(pnn, pnn->cInput, pnn->cHidden, pnn->cOutput, pnn->rBetaHidden, pnn->rBetaOutput))
++    if (!NeuralNetDimensionsMatch(cInput, cHidden, cOutput,
++                                  expectedInput, expectedHidden,
++                                  expectedOutput)) {
++        errno = EINVAL;
++        return -2;
++    }
++
++    if (NeuralNetFloatCountBytes(cInput, cHidden, &hidden_weight_count) ||
++        NeuralNetFloatCountBytes(cHidden, cOutput, &output_weight_count))
+         return -1;
++    hidden_weight_count /= sizeof(float);
++    output_weight_count /= sizeof(float);
+ 
+-    pnn->nTrained = 1;
++    if (NeuralNetCreate(&loaded, cInput, cHidden, cOutput,
++                        rBetaHidden, rBetaOutput))
++        return -1;
++    loaded.nTrained = 1;
++
++    if (NeuralNetReadBinaryFloats(pf, loaded.arHiddenWeight,
++                                  hidden_weight_count) ||
++        NeuralNetReadBinaryFloats(pf, loaded.arOutputWeight,
++                                  output_weight_count) ||
++        NeuralNetReadBinaryFloats(pf, loaded.arHiddenThreshold, cHidden) ||
++        NeuralNetReadBinaryFloats(pf, loaded.arOutputThreshold, cOutput))
++        goto done;
++
++    *pnn = loaded;
++    memset(&loaded, 0, sizeof(loaded));
++    result = 0;
++
++done:
++    NeuralNetDestroy(&loaded);
++    return result;
++}
+ 
+-    FREAD(pnn->arHiddenWeight, pnn->cInput * pnn->cHidden);
+-    FREAD(pnn->arOutputWeight, pnn->cHidden * pnn->cOutput);
+-    FREAD(pnn->arHiddenThreshold, pnn->cHidden);
+-    FREAD(pnn->arOutputThreshold, pnn->cOutput);
+-#undef FREAD
++extern int
++NeuralNetLoadBinary(neuralnet * pnn, FILE * pf)
++{
++    return NeuralNetLoadBinaryInternal(pnn, pf, 0, 0, 0);
++}
+ 
+-    return 0;
++extern int
++NeuralNetLoadBinaryValidated(neuralnet * pnn, FILE * pf,
++                             const unsigned int expectedInput,
++                             const unsigned int expectedHidden,
++                             const unsigned int expectedOutput)
++{
++    return NeuralNetLoadBinaryInternal(pnn, pf, expectedInput,
++                                       expectedHidden, expectedOutput);
+ }
+ 
+ extern int
+diff --git a/lib/neuralnet.h b/lib/neuralnet.h
+index bed5e5c..38c5a32 100644
+--- a/lib/neuralnet.h
++++ b/lib/neuralnet.h
+@@ -65,7 +65,15 @@ extern int NeuralNetEvaluate(const neuralnet * pnn, float arInput[], float arOut
+ extern int NeuralNetEvaluateSSE(const neuralnet * pnn, float arInput[], float arOutput[], NNState * pnState);
+ #endif
+ extern int NeuralNetLoad(neuralnet * pnn, FILE * pf);
++extern int NeuralNetLoadValidated(neuralnet * pnn, FILE * pf,
++                                  unsigned int expectedInput,
++                                  unsigned int expectedHidden,
++                                  unsigned int expectedOutput);
+ extern int NeuralNetLoadBinary(neuralnet * pnn, FILE * pf);
++extern int NeuralNetLoadBinaryValidated(neuralnet * pnn, FILE * pf,
++                                        unsigned int expectedInput,
++                                        unsigned int expectedHidden,
++                                        unsigned int expectedOutput);
+ extern int NeuralNetSaveBinary(const neuralnet * pnn, FILE * pf);
+ extern int SIMD_Supported(void);
+ 
+diff --git a/mtsupport.c b/mtsupport.c
+index 32916b3..2f6c541 100644
+--- a/mtsupport.c
++++ b/mtsupport.c
+@@ -38,30 +38,42 @@ SSE_ALIGN(ThreadData td);
+ extern ThreadLocalData *
+ MT_CreateThreadLocalData(int id)
+ {
+-    ThreadLocalData *tld = (ThreadLocalData *) g_malloc(sizeof(ThreadLocalData));
++    ThreadLocalData *tld = (ThreadLocalData *) g_try_malloc0(sizeof(ThreadLocalData));
++    int i;
++
++    if (!tld)
++        return NULL;
+     tld->id = id;
+-    tld->pnnState = (NNState *) g_malloc(sizeof(NNState) * 3);
+-    memset(tld->pnnState, 0, sizeof(NNState) * 3);
+-    // cppcheck-suppress duplicateExpression
+-    tld->pnnState[CLASS_RACE - CLASS_RACE].savedBase = g_malloc(nnRace.cHidden * sizeof(float));
++    tld->pnnState = (NNState *) g_try_malloc0(sizeof(NNState) * 3);
++    if (!tld->pnnState)
++        goto fail;
+     // cppcheck-suppress duplicateExpression
+-    memset(tld->pnnState[CLASS_RACE - CLASS_RACE].savedBase, 0, nnRace.cHidden * sizeof(float));
++    tld->pnnState[CLASS_RACE - CLASS_RACE].savedBase = g_try_malloc0(nnRace.cHidden * sizeof(float));
+     // cppcheck-suppress duplicateExpression
+-    tld->pnnState[CLASS_RACE - CLASS_RACE].savedIBase = g_malloc(nnRace.cInput * sizeof(float));
+-    // cppcheck-suppress duplicateExpression
+-    memset(tld->pnnState[CLASS_RACE - CLASS_RACE].savedIBase, 0, nnRace.cInput * sizeof(float));
+-    tld->pnnState[CLASS_CRASHED - CLASS_RACE].savedBase = g_malloc(nnCrashed.cHidden * sizeof(float));
+-    memset(tld->pnnState[CLASS_CRASHED - CLASS_RACE].savedBase, 0, nnCrashed.cHidden * sizeof(float));
+-    tld->pnnState[CLASS_CRASHED - CLASS_RACE].savedIBase = g_malloc(nnCrashed.cInput * sizeof(float));
+-    memset(tld->pnnState[CLASS_CRASHED - CLASS_RACE].savedIBase, 0, nnCrashed.cInput * sizeof(float));
+-    tld->pnnState[CLASS_CONTACT - CLASS_RACE].savedBase = g_malloc(nnContact.cHidden * sizeof(float));
+-    memset(tld->pnnState[CLASS_CONTACT - CLASS_RACE].savedBase, 0, nnContact.cHidden * sizeof(float));
+-    tld->pnnState[CLASS_CONTACT - CLASS_RACE].savedIBase = g_malloc(nnContact.cInput * sizeof(float));
+-    memset(tld->pnnState[CLASS_CONTACT - CLASS_RACE].savedIBase, 0, nnContact.cInput * sizeof(float));
+-
+-    tld->aMoves = (move *) g_malloc(sizeof(move) * MAX_INCOMPLETE_MOVES);
+-    memset(tld->aMoves, 0, sizeof(move) * MAX_INCOMPLETE_MOVES);
++    tld->pnnState[CLASS_RACE - CLASS_RACE].savedIBase = g_try_malloc0(nnRace.cInput * sizeof(float));
++    tld->pnnState[CLASS_CRASHED - CLASS_RACE].savedBase = g_try_malloc0(nnCrashed.cHidden * sizeof(float));
++    tld->pnnState[CLASS_CRASHED - CLASS_RACE].savedIBase = g_try_malloc0(nnCrashed.cInput * sizeof(float));
++    tld->pnnState[CLASS_CONTACT - CLASS_RACE].savedBase = g_try_malloc0(nnContact.cHidden * sizeof(float));
++    tld->pnnState[CLASS_CONTACT - CLASS_RACE].savedIBase = g_try_malloc0(nnContact.cInput * sizeof(float));
++    for (i = 0; i < 3; i++)
++        if (!tld->pnnState[i].savedBase || !tld->pnnState[i].savedIBase)
++            goto fail;
++
++    tld->aMoves = (move *) g_try_malloc0(sizeof(move) * MAX_INCOMPLETE_MOVES);
++    if (!tld->aMoves)
++        goto fail;
+     return tld;
++
++fail:
++    if (tld->pnnState) {
++        for (i = 0; i < 3; i++) {
++            g_free(tld->pnnState[i].savedBase);
++            g_free(tld->pnnState[i].savedIBase);
++        }
++    }
++    g_free(tld->pnnState);
++    g_free(tld);
++    return NULL;
+ }
+ 
+ #if defined(USE_MULTITHREAD)
+@@ -252,21 +264,27 @@ Mutex_Release(Mutex * mutex)
+ #endif
+ }
+ 
+-extern void
+-MT_InitThreads(void)
++extern int
++BGC_MT_InitThreads(void)
+ {
++    ThreadLocalData *main_tld;
++
+ #if !GLIB_CHECK_VERSION (2,32,0)
+     if (!g_thread_supported())
+         g_thread_init(NULL);
+     g_assert(g_thread_supported());
+ #endif
++    main_tld = MT_CreateThreadLocalData(-1);
++    if (!main_tld)
++        return -1;
++
+     td.tasks = NULL;
+     MT_SafeSet(&td.doneTasks, 0);
+     td.addedTasks = 0;
+     td.totalTasks = -1;
+     InitManualEvent(&td.activity);
+     TLSCreate(&td.tlsItem);
+-    TLSSetValue(td.tlsItem, (size_t) MT_CreateThreadLocalData(-1));
++    TLSSetValue(td.tlsItem, (size_t) main_tld);
+ 
+ #if defined(DEBUG_MULTITHREADED) && defined(WIN32)
+     mainThreadID = GetCurrentThreadId();
+@@ -280,6 +298,7 @@ MT_InitThreads(void)
+         condMutex = g_mutex_new();
+ #endif
+     td.numThreads = 0;
++    return 0;
+ }
+ 
+ extern void
+@@ -387,10 +406,11 @@ multi_debug(const char *str, ...)
+ 
+ #else	/* !defined(USE_MULTITHREAD) */
+ 
+-extern void
+-MT_InitThreads(void)
++extern int
++BGC_MT_InitThreads(void)
+ {
+     td.tld = MT_CreateThreadLocalData(-1);
++    return td.tld ? 0 : -1;
+ }
+ 
+ extern void
+@@ -410,6 +430,14 @@ MT_Close(void)
+     }
+     g_free(pnnState);
+     g_free(td.tld);
++    td.tld = NULL;
+ }
+ 
+ #endif
++
++extern void
++MT_InitThreads(void)
++{
++    if (BGC_MT_InitThreads() != 0)
++        exit(EXIT_FAILURE);
++}
+diff --git a/multithread.h b/multithread.h
+index e3230fe..c28acf7 100644
+--- a/multithread.h
++++ b/multithread.h
+@@ -110,6 +110,7 @@ extern void MT_AddTask(Task * pt, gboolean lock);
+ extern void mt_add_tasks(unsigned int num_tasks, AsyncFun pFun, void *taskData, gpointer linked);
+ extern int MT_WaitForTasks(gboolean(*pCallback) (gpointer), int callbackTime, int autosave);
+ extern void MT_InitThreads(void);
++extern int BGC_MT_InitThreads(void);
+ extern void MT_Close(void);
+ extern void MT_CloseThreads(void);
+ extern void CloseThread(void *unused);

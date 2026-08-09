@@ -1,55 +1,52 @@
 # GNUbg/WASM roadmap
 
-Do not begin this phase until the mock passes the real private-host browser
-integration.
+Do not replace the mock until each remaining browser and release gate below is
+complete.
 
-0. **Completed.** Move this capsule into its independent public repository.
-   Verify that the proprietary parent repository, its bundles, and its
-   deployment contain no capsule or GNUbg source, patches, WASM, neural
-   networks, or build artifacts. Do not add any GPL material before this
-   separation is complete.
-1. **Completed.** Select and verify an official signed GNUbg stable release from
-   GNU/Savannah. Version 1.08.003 is authenticated with GNU's official keyring.
-2. **Completed.** Vendor the complete exact source and record archive, signature,
-   tag commit, locally computed SHA-256 provenance, signer key, and license.
-   See `third_party/gnubg/source-lock.json`.
-3. **Completed.** Build a minimal native headless harness and golden tests
-   first. See `GNUBG-NATIVE.md`.
-4. **Completed for the native checkpoint.** Exclude desktop UI, audio,
-   database, Python, networking, and unrelated command features. The native
-   link boundary does not expose GNUbg's arbitrary command parser.
-5. **Completed for the native checkpoint.** The typed C API covers one-shot
-   initialization, candidate evaluation, five settings, cache reset, disposal,
-   and cube offer/response analysis over an authoritative supplied action list.
-6. **In progress.** The native adapter translates absolute BEP-style positions,
-   independently replays every supplied legal turn, and matches it to GNUbg's
-   generated legal set. The future TypeScript/WASM bridge must additionally
-   compare optional `resultingBoard` values; current host turns omit that
-   field.
-7. **In progress.** ABI 1.0 freezes fixed-width fields, inline candidates,
-   arena-relative offsets, structure sizes, and offsets with native assertions
-   and a runtime descriptor. The bounded arena bridge, strict UTF-8/range
-   validation, terminal engine lifecycle, fake-adapter tests, and direct native
-   GNUbg parity are complete and run under ASan/UBSan. Emscripten 6.0.5 is
-   pinned, and an ABI-only single-threaded modularized `.mjs + .wasm` smoke
-   proves the toolchain. Next compile the selected adapter/evaluator objects for
-   wasm32, resolve GLib/init/cache blockers, and run real wasm parity before
-   integrating behind the compute Worker. Do not require
-   SharedArrayBuffer/pthreads for v1.
-8. Fetch WASM/networks through explicit CORS-enabled URLs; do not resolve them
-   relative to the Blob Worker URL.
-9. If synchronous native search cannot be interrupted, keep cancellation in
-   the iframe controller, terminate the compute Worker, suppress stale output,
-   and recreate a clean runtime. Define measured candidate/time limits before
-   exposing the two-ply `maximum` preset.
-10. Publish measured download/memory/startup/decision figures and honest BEP
-    capabilities.
-11. Include complete corresponding source, every patch/build script, license
-    text, dependency/network notices, checksums, and a reproducible release
-    archive for the exact deployed WASM.
+0. **Completed.** Move this capsule into its independent public repository and
+   keep the proprietary parent repository, bundles, and deployment free of
+   capsule/GNUbg source and build artifacts.
+1. **Completed.** Select and verify official GNUbg 1.08.003 from GNU/Savannah
+   with GNU's official keyring.
+2. **Completed.** Preserve the exact signed source, archive and signature,
+   signer key, SHA-256 provenance, and license. See
+   `third_party/gnubg/source-lock.json`.
+3. **Completed.** Build the minimal native headless harness and golden tests.
+   See `GNUBG-NATIVE.md`.
+4. **Completed for the selected evaluator.** Exclude desktop UI, audio,
+   Python, networking, arbitrary commands, and optional database features.
+5. **Completed.** Provide typed initialization, candidate evaluation, five
+   strengths, cache reset, disposal, and cube offer/response analysis over
+   authoritative supplied actions.
+6. **In progress.** The adapter translates absolute BEP-style positions,
+   independently replays supplied legal turns, and matches GNUbg's generated
+   legal set. The future BEP-to-WASM marshaller must additionally compare
+   optional `resultingBoard` values; current host turns omit that field.
+7. **Completed for the linked Node checkpoint.** ABI 1.0 freezes fixed-width
+   fields, inline candidates, arena-relative offsets, and every structure size
+   and offset. The bounded bridge, strict validation, terminal lifecycle,
+   fake-adapter tests, native parity, recoverable initialization, small
+   wasm-only compatibility surface, authenticated embedded match-equity data,
+   reduced caches, and real Emscripten 6.0.5 checker/cube/lifecycle tests are in
+   place. The module remains single-threaded and requires no
+   `SharedArrayBuffer` or pthreads.
+8. **Next.** Build the compute Worker loader and JavaScript/TypeScript arena
+   marshaller. Fetch the module and data through explicit CORS-enabled URLs;
+   never resolve them relative to the Blob Worker URL. Validate the runtime
+   descriptor before initialization.
+9. **Next.** Keep cancellation in the iframe controller, terminate synchronous
+   compute, suppress stale output, and recreate a clean Worker/module. Add real
+   browser asset-failure and Worker termination/recreation tests.
+10. **Next.** Define measured candidate and time limits, especially for the
+    two-ply maximum preset. Publish representative download, memory, startup,
+    and decision measurements and honest BEP capabilities.
+11. **Release gate.** Include complete corresponding source, every patch and
+    build script, license text, network/data notices, checksums, and a
+    reproducible archive for the exact deployed module. Run Firefox/WebKit
+    portability testing and obtain legal review before production.
 
-The iframe/Worker split is a technical isolation boundary, not a GPL exception.
-The free-of-charge website and browser-local execution do not remove source
-distribution obligations. Keep GNUbg artifacts out of the proprietary
-application and obtain legal review before production if proprietary licensing
-is business-critical.
+The iframe/Worker split is a technical isolation boundary, not a GPL
+exception. The free-of-charge website and browser-local execution do not
+remove source-distribution obligations. Keep GNUbg artifacts out of the
+proprietary application and obtain legal review if proprietary licensing is
+business-critical.

@@ -213,7 +213,7 @@ The executable currently checks:
 - a separate real public-wrapper process covering asset-path init, duplicate
   init, checker selection, reset, idempotent dispose, and terminal calls.
 
-## Known limitations before WASM
+## Known limitations before browser integration
 
 - The harness loads the 1,097,796-byte text network. A later pinned conversion
   step should generate and authenticate GNUbg's approximately 408 KB binary
@@ -226,21 +226,29 @@ The executable currently checks:
 - Match evaluation is rejected above length 64 or cube value 64 because of
   GNUbg's fixed match-equity table dimensions.
 - Raccoon policy is rejected because GNUbg's `cubeinfo` cannot represent it.
-- The initial native build uses system GLib. Emscripten does not provide GLib;
-  the WASM phase needs a pinned GLib cross-build or a public GPL-side patch or
-  compatibility layer that removes the required GLib surface.
-- Upstream's initial evaluation caches use roughly 33 MB and its thread-local
-  move storage roughly another 4 MB. The WASM build should reduce those
-  allocations before initialization rather than shrinking them afterward.
+- The native harness continues to use system GLib. The linked wasm checkpoint
+  excludes GLib and GNUbg's generic XML/list path, using the capsule's narrow
+  wasm-only compatibility runtime instead. The remaining work is to connect
+  that verified evaluator to the browser compute Worker.
+- Upstream's native defaults still allocate roughly 33 MB for evaluation
+  caches and another 4 MB for thread-local move storage. The wasm build instead
+  sets 65,536 evaluator-cache entries and 8,192 pruning-cache entries before
+  initialization, with 32 MiB initial and 128 MiB maximum memory. Its Node test
+  fills memory to the limit and requires cache-allocation failure to return
+  cleanly rather than trap.
 - `maximum` evaluates every supplied candidate at two plies. The native API
   allows the BEP ceiling of 4,096 candidates and currently has no time, node,
   or cancellation budget, so that combination is not browser-safe yet. The
   Worker bridge must impose measured limits and use Worker termination for
   hard cancellation before exposing this preset.
-- Invalid upstream weight data can terminate the process because
-  `EvalInitialise()` does not return an error. The authenticated assets avoid
-  that in this checkpoint; the WASM adapter should add an explicit GPL-side
-  failure path.
+- The public patch adds the capsule-only `BGC_EvalInitialise()` status entry
+  point while preserving upstream `EvalInitialise(void)`, and cleans up partial
+  state on failure. Native tests cover wrong-version, mid-first-network
+  truncation, truncation and non-finite data in a later network, and a
+  structurally complete but wrong-shaped file, including consumed same-process
+  retries; the wasm test also requires a fresh module after an
+  initialization failure. The authenticated weights remain the only supported
+  evaluator asset.
 
 The adapter and executable link GNUbg and are licensed
 `GPL-3.0-or-later`. They, all future patches, build scripts, runtime assets,

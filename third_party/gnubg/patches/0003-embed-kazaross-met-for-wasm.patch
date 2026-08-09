@@ -1,0 +1,129 @@
+diff --git a/matchequity.c b/matchequity.c
+index 88a7cfb..fd71578 100644
+--- a/matchequity.c
++++ b/matchequity.c
+@@ -21,15 +21,18 @@
+ #include "config.h"
+ 
+ #include <glib.h>
+-#include <glib/gprintf.h>
++#include <float.h>
+ #include <stdio.h>
+ #include <math.h>
+ #include <string.h>
+ #include <stdlib.h>
+ #include <stdarg.h>
+ 
++#if !defined(BGC_EMBEDDED_KAZAROSS_MET)
++#include <glib/gprintf.h>
+ #include "list.h"
+ #include "mec.h"
++#endif
+ #include "util.h"
+ 
+ #define GAMMONRATE    0.25
+@@ -38,7 +41,9 @@
+ #include "matchequity.h"
+ #include "backgammon.h"
+ 
+-
++#if defined(BGC_EMBEDDED_KAZAROSS_MET)
++#include "gnubg_kazaross_xg2_met_bits.inc"
++#else
+ typedef struct {
+     char *szName;
+     float value;
+@@ -69,6 +74,7 @@ typedef struct {
+     metinfo mi;
+ 
+ } metdata;
++#endif
+ 
+ /*
+  * A1 (A2) is the match equity of player 1 (2)
+@@ -192,6 +198,7 @@ initPostCrawfordMET(float afMETPostCrawford[MAXSCORE],
+ }
+ 
+ 
++#if !defined(BGC_EMBEDDED_KAZAROSS_MET)
+ /*
+  * Calculate match equity table from Zadeh's formula published
+  * in Management Science xx.xx,xx.
+@@ -375,6 +382,8 @@ initMETZadeh(float aafMET[MAXSCORE][MAXSCORE],
+ 
+ }
+ 
++#endif
++
+ extern int
+ GetPoints(float arOutput[5], const cubeinfo * pci, float arCP[2])
+ {
+@@ -723,6 +732,7 @@ ExtendMET(float aarMET[MAXSCORE][MAXSCORE], const int nMaxScore)
+ }
+ 
+ 
++#if !defined(BGC_EMBEDDED_KAZAROSS_MET)
+ static void
+ initMP(metparameters * pmp)
+ {
+@@ -1372,6 +1382,8 @@ met_parser_error(GMarkupParseContext * UNUSED(context), GError * UNUSED(error),
+     g_warning(_("An error occurred while parsing file: %s\n"), parser->filename);
+ }
+ 
++#endif
++
+ /*
+  * Calculate gammon and backgammon price at the specified score
+  * with specified cube.
+@@ -1505,6 +1517,37 @@ extern void
+ InitMatchEquity(const char *szFileName)
+ {
+     int i, j;
++
++#if defined(BGC_EMBEDDED_KAZAROSS_MET)
++    (void) szFileName;
++    _Static_assert(sizeof(float) == sizeof(uint32_t) &&
++                   FLT_RADIX == 2 && FLT_MANT_DIG == 24 &&
++                   FLT_MIN_EXP == -125 && FLT_MAX_EXP == 128,
++                   "embedded MET requires IEEE-754 binary32 floats");
++
++    for (j = 0; j < 2; j++) {
++        for (i = 0; i < (int) BGC_KAZAROSS_XG2_MET_LENGTH - 1; i++)
++            memcpy(&aafMETPostCrawford[j][i],
++                   &bgc_kazaross_xg2_post_bits[i], sizeof(float));
++        initPostCrawfordMET(aafMETPostCrawford[j],
++                            (int) BGC_KAZAROSS_XG2_MET_LENGTH - 1,
++                            GAMMONRATE, 0.015f, 0.004f);
++    }
++
++    for (i = 0; i < (int) BGC_KAZAROSS_XG2_MET_LENGTH; i++)
++        for (j = 0; j < (int) BGC_KAZAROSS_XG2_MET_LENGTH; j++)
++            memcpy(&aafMET[i][j], &bgc_kazaross_xg2_pre_bits[i][j],
++                   sizeof(float));
++
++    ExtendMET(aafMET, (int) BGC_KAZAROSS_XG2_MET_LENGTH);
++    /*
++     * The capsule ABI does not expose GNUbg's desktop MET name, path, or
++     * description fields. Keep those nullable rather than allocating metadata
++     * that the one-shot browser evaluator never consumes.
++     */
++    memset(&miCurrent, 0, sizeof(miCurrent));
++    miCurrent.nLength = (int) BGC_KAZAROSS_XG2_MET_LENGTH;
++#else
+     metdata md;
+ 
+     /* Read match equity table from XML file */
+@@ -1575,12 +1618,12 @@ InitMatchEquity(const char *szFileName)
+ 
+     /* save match equity table information */
+     memcpy(&miCurrent, &md.mi, sizeof(metinfo));
++#endif
+ 
+     /* initialise gammon prices */
+     calcGammonPrices(aafMET, aafMETPostCrawford, aaaafGammonPrices, aaaafGammonPricesPostCrawford);
+ }
+ 
+-
+ /*
+  * Return match equity (mwc) assuming player fWhoWins wins nPoints points.
+  *

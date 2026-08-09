@@ -1,8 +1,8 @@
 # GNU Backgammon upstream source
 
-This directory preserves the exact authenticated GNU Backgammon release that
-will be used for the future native and WebAssembly engine builds. It is not
-part of the current mock Worker build and is not copied into `dist/`.
+This directory preserves the exact authenticated GNU Backgammon release used
+by the native and WebAssembly evaluator checkpoints. It is not part of the
+current mock Worker build and is not copied into `dist/`.
 
 ## Pinned release
 
@@ -38,9 +38,9 @@ not read or modify the user's personal GnuPG keyring.
 
 ## Modification policy
 
-Keep the signed archive byte-for-byte unchanged. Future builds must extract it
-into an ignored work directory and apply checked-in patches as a separate,
-ordered step. Do not silently edit an extracted upstream tree and do not place
+Keep the signed archive byte-for-byte unchanged. Builds must extract it into
+an ignored work directory and apply checked-in patches as a separate, ordered
+step. Do not silently edit an extracted upstream tree and do not place
 generated native objects, WASM, or Emscripten output in this directory.
 
 The archive preserves GNUbg's complete upstream source and its bundled notices.
@@ -60,12 +60,20 @@ headless evaluator harness, and runs mapping, legality, scoring, and cube
 goldens. See `docs/GNUBG-NATIVE.md` for the exact source boundary and
 prerequisites.
 
-The current patch set contains:
+The current ordered patch set contains:
 
-- `0001-race-bearoff-without-two-sided-db.patch`, which makes GNUbg's race
-  backgammon correction use the initialized one-sided heuristic when the
-  optional two-sided bearoff database is not shipped. This avoids a null
-  bearoff context without adding a large database payload.
+- `0001-race-bearoff-without-two-sided-db.patch`, which provides a
+  deterministic one-sided-heuristic fallback when the optional two-sided
+  bearoff database is absent;
+- `0002-recoverable-engine-initialization.patch`, which makes evaluator
+  initialization and constrained cache allocation fail cleanly and supports
+  safe shutdown; and
+- `0003-embed-kazaross-met-for-wasm.patch`, which adds the authenticated
+  embedded match-equity-table path used by the GLib-free wasm build.
+
+The authoritative application order, exact purposes, compatibility details,
+authorship, and generated-table provenance are documented in
+[the patch README](patches/README.md).
 
 The native adapter and executable link GNUbg and are GPL-3.0-or-later. The
 default browser mock remains separate and does not include these generated

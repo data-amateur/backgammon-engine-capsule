@@ -702,6 +702,26 @@ file_is_readable(const char *path)
     return 1;
 }
 
+static const char *
+evaluation_initialization_error(const eval_init_status status)
+{
+    switch (status) {
+    case EVAL_INIT_PLATFORM_ERROR:
+        return "unsupported evaluation platform";
+    case EVAL_INIT_CACHE_ERROR:
+        return "evaluation cache allocation failed";
+    case EVAL_INIT_WEIGHTS_ERROR:
+        return "weights data is invalid or incomplete";
+    case EVAL_INIT_WEIGHTS_SHAPE_ERROR:
+        return "weights network dimensions do not match GNUbg 1.08.003";
+    case EVAL_INIT_RESOURCE_ERROR:
+        return "evaluation resource allocation failed";
+    case EVAL_INIT_OK:
+    default:
+        return "unknown initialization failure";
+    }
+}
+
 bgc_status
 bgc_engine_create(const char *weights_path,
                   const char *match_equity_path,
@@ -709,6 +729,7 @@ bgc_engine_create(const char *weights_path,
                   bgc_error *error)
 {
     bgc_engine *engine;
+    eval_init_status evaluator_status;
 
     clear_error(error);
     if (!engine_out)
@@ -730,8 +751,22 @@ bgc_engine_create(const char *weights_path,
         return fail(error, BGC_STATUS_INITIALIZATION_FAILED,
                     "could not allocate the GNUbg adapter");
 
+    /*
+     * GNUbg owns process-global state that cannot be safely reinitialized
+     * after a partial startup. Consume this module instance immediately before
+     * the first upstream mutation. A fresh Worker/module is the retry boundary.
+     */
+    runtime_state = BGC_RUNTIME_FINISHED;
     InitMatchEquity(match_equity_path);
-    EvalInitialise((char *) weights_path, NULL, TRUE, NULL);
+    evaluator_status = BGC_EvalInitialise(
+        (char *) weights_path, NULL, TRUE, NULL);
+    if (evaluator_status != EVAL_INIT_OK) {
+        EvalShutdown();
+        free(engine);
+        return fail(error, BGC_STATUS_INITIALIZATION_FAILED,
+                    "GNUbg evaluator initialization failed: %s",
+                    evaluation_initialization_error(evaluator_status));
+    }
 
     /*
      * Optional bearoff database files are intentionally not bundled. GNUbg's
@@ -739,14 +774,23 @@ bgc_engine_create(const char *weights_path,
      * and bearoff positions.
      */
     pbc1 = BearoffInit(NULL, BO_HEURISTIC, NULL);
-    if (!pbc1) {
+    if (!pbc1 || !pbc1->p) {
+        if (pbc1) {
+            BearoffClose(pbc1);
+            pbc1 = NULL;
+        }
         EvalShutdown();
         free(engine);
-        runtime_state = BGC_RUNTIME_FINISHED;
         return fail(error, BGC_STATUS_INITIALIZATION_FAILED,
                     "could not initialize GNUbg's heuristic bearoff evaluator");
     }
-    MT_InitThreads();
+
+    if (BGC_MT_InitThreads() != 0) {
+        EvalShutdown();
+        free(engine);
+        return fail(error, BGC_STATUS_INITIALIZATION_FAILED,
+                    "could not allocate GNUbg's evaluation workspace");
+    }
 
     engine->ready = 1;
     runtime_state = BGC_RUNTIME_ACTIVE;

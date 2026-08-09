@@ -28,6 +28,14 @@ const sourcePatches = [
     repositoryRoot,
     "third_party/gnubg/patches/0001-race-bearoff-without-two-sided-db.patch",
   ),
+  path.join(
+    repositoryRoot,
+    "third_party/gnubg/patches/0002-recoverable-engine-initialization.patch",
+  ),
+  path.join(
+    repositoryRoot,
+    "third_party/gnubg/patches/0003-embed-kazaross-met-for-wasm.patch",
+  ),
 ];
 
 function run(command, args, cwd = repositoryRoot) {
