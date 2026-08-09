@@ -1,5 +1,12 @@
 Backgammon Engine Capsule
 Copyright 2026 Backgammon Light contributors
 
-This initial capsule contains an original deterministic mock engine and no GNU
-Backgammon source, binary, neural-network data, or other GPL engine component.
+This browser distribution is a mixed-license package. The capsule shell,
+Backgammon Engine Protocol implementation, and original TypeScript components
+are Apache-2.0. The GNU Backgammon Worker, WebAssembly evaluator, adapter,
+runtime boundary, and neural-network data are GPL-3.0-or-later.
+
+The Apache license is in LICENSE.txt. The GNU GPL v3 license is in
+LICENSES/GPL-3.0-or-later.txt. Applicable upstream and runtime notices are in
+THIRD_PARTY_NOTICES.txt. SOURCE.txt identifies the complete corresponding
+source for this exact build.

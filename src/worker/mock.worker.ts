@@ -97,24 +97,33 @@ workerScope.addEventListener(
   "message",
   (event: MessageEvent<CapsuleToWorkerMessage>) => {
     const message = event.data;
-    if (message.kind === "capsule.worker-dispose") {
-      disposed = true;
-      for (const timeoutId of pending.values()) {
-        workerScope.clearTimeout(timeoutId);
+    switch (message.kind) {
+      case "capsule.worker-initialize":
+        // The legacy mock has no external module to initialize. Its top-level
+        // ready signal remains only for the non-shipped test/reference entry.
+        return;
+      case "capsule.worker-dispose":
+        disposed = true;
+        for (const timeoutId of pending.values()) {
+          workerScope.clearTimeout(timeoutId);
+        }
+        pending.clear();
+        workerScope.close();
+        return;
+      case "capsule.worker-cancel": {
+        const timeoutId = pending.get(message.requestId);
+        if (timeoutId !== undefined) {
+          workerScope.clearTimeout(timeoutId);
+          pending.delete(message.requestId);
+        }
+        return;
       }
-      pending.clear();
-      workerScope.close();
-      return;
+      case "capsule.worker-request":
+        runRequest(message);
+        return;
     }
-    if (message.kind === "capsule.worker-cancel") {
-      const timeoutId = pending.get(message.requestId);
-      if (timeoutId !== undefined) {
-        workerScope.clearTimeout(timeoutId);
-        pending.delete(message.requestId);
-      }
-      return;
-    }
-    runRequest(message);
+    const exhaustiveMessage: never = message;
+    throw new Error(`Unsupported Worker message: ${String(exhaustiveMessage)}`);
   },
 );
 

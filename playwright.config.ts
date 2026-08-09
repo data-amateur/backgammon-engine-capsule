@@ -23,7 +23,7 @@ export default defineConfig({
       command: "npm run build:verification && npm run preview:verification",
       url: "http://localhost:4174",
       reuseExistingServer: false,
-      timeout: 30_000,
+      timeout: 180_000,
     },
   ],
   projects: [

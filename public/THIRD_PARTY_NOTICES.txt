@@ -1,11 +1,41 @@
 THIRD-PARTY NOTICES
 
-The browser runtime has no third-party production dependency. Vite and esbuild
-compile the original project source into static JavaScript and CSS without
-shipping their optional module-preload polyfill or another runtime library.
+GNU Backgammon 1.08.003
 
-Development and test tools are listed in package.json and package-lock.json;
-their packages include their respective license files.
+This distribution contains selected GNU Backgammon program code and its
+gnubg.weights neural-network data. GNU Backgammon is GPL-3.0-or-later.
+Copyright belongs to the GNU Backgammon contributors identified in its source.
+The complete GPL v3 text is provided in LICENSES/GPL-3.0-or-later.txt.
 
-This mock release contains no GNU Backgammon source, binary, neural-network
-data, or other GPL engine component.
+Upstream project: https://www.gnu.org/software/gnubg/
+
+The exact authenticated upstream archive, capsule patches, adapter and Worker
+sources, build scripts, and toolchain lock are available from the corresponding
+source location recorded in SOURCE.txt.
+
+Kazaross-XG2 match-equity data
+
+Copyright (C) 2011 Neil Kazaross. Transcribed for use by GNUbg by Michael
+Petch. Copying and distribution, with or without modification, are permitted
+in any medium without royalty provided the copyright and upstream notice are
+preserved. The file is offered as-is, without warranty.
+
+Emscripten 6.0.5
+
+The generated gnubg-wasm.mjs runtime and gnubg-wasm.wasm use the pinned
+Emscripten 6.0.5 toolchain. Emscripten is offered under the MIT and University
+of Illinois/NCSA licenses, with additional bundled-component notices. The
+exact pinned Emscripten license and notices are distributed beside the engine
+as EMSCRIPTEN-LICENSE.txt, and the generated JavaScript retains Emscripten's
+license banner.
+
+musl
+
+Selected musl libc code is linked into gnubg-wasm.wasm. Musl is primarily
+under the MIT license, copyright 2005-2020 Rich Felker and contributors, with
+additional permissive component notices. The exact pinned COPYRIGHT file is
+distributed beside the engine as MUSL-COPYRIGHT.txt.
+
+The original capsule shell remains under Apache-2.0. Development and test
+tools are listed in package.json and package-lock.json and are not served as
+production runtime dependencies.

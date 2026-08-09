@@ -1,5 +1,8 @@
 import { getTrustedBootstrap } from "./bootstrap";
-import { WorkerRuntime } from "./workerRuntime";
+import {
+  WorkerRuntime,
+  WorkerRuntimeStartupError,
+} from "./workerRuntime";
 import {
   isBepEngineToHostMessage,
   isBepHostToEngineMessage,
@@ -13,6 +16,7 @@ import {
   type BepMethod,
   type BepRequestMessage,
 } from "../protocol/types";
+import type { GnubgAssetUrls } from "../worker/gnubgEngine";
 
 export type CapsuleStatus =
   | "waiting"
@@ -25,12 +29,14 @@ export type CapsuleStatus =
 export interface CapsuleControllerOptions {
   readonly allowedParentOrigins: ReadonlySet<string>;
   readonly workerAssetUrl: string;
+  readonly engineAssets: GnubgAssetUrls;
   readonly onStatusChange?: (status: CapsuleStatus, detail?: string) => void;
 }
 
 export class CapsuleController {
   private readonly allowedParentOrigins: ReadonlySet<string>;
   private readonly workerAssetUrl: string;
+  private readonly engineAssets: GnubgAssetUrls;
   private readonly onStatusChange?: CapsuleControllerOptions["onStatusChange"];
   private connected = false;
   private disposed = false;
@@ -43,6 +49,7 @@ export class CapsuleController {
   public constructor(options: CapsuleControllerOptions) {
     this.allowedParentOrigins = options.allowedParentOrigins;
     this.workerAssetUrl = options.workerAssetUrl;
+    this.engineAssets = options.engineAssets;
     this.onStatusChange = options.onStatusChange;
   }
 
@@ -108,8 +115,7 @@ export class CapsuleController {
       return;
     }
     if (event.data.kind === "bep.cancel") {
-      this.activeRequests.delete(event.data.requestId);
-      this.runtime?.cancel(event.data.requestId);
+      this.cancelRequest(event.data.requestId);
       return;
     }
     void this.handleRequest(event.data);
@@ -141,14 +147,19 @@ export class CapsuleController {
       if (!this.activeRequests.delete(request.requestId)) {
         return;
       }
-      const message =
-        error instanceof Error ? error.message : "Failed to initialize engine";
-      this.postError(request.requestId, request.method, {
-        code: "asset-load-failed",
-        message,
-        retryable: true,
-      });
-      this.onStatusChange?.("failed", message);
+      const startupError =
+        error instanceof WorkerRuntimeStartupError
+          ? error.bepError
+          : {
+              code: "asset-load-failed" as const,
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to initialize engine",
+              retryable: true,
+            };
+      this.postError(request.requestId, request.method, startupError);
+      this.onStatusChange?.("failed", startupError.message);
     }
   }
 
@@ -157,23 +168,31 @@ export class CapsuleController {
       return this.runtimePromise;
     }
     this.onStatusChange?.("initializing");
-    const runtime = new WorkerRuntime(this.workerAssetUrl, {
+    const runtime = new WorkerRuntime(this.workerAssetUrl, this.engineAssets, {
       onResult: (requestId, method, payload) => {
-        this.handleWorkerResult(requestId, method, payload);
+        if (this.runtime === runtime) {
+          this.handleWorkerResult(requestId, method, payload);
+        }
       },
       onError: (requestId, method, error) => {
-        if (this.activeRequests.delete(requestId)) {
+        if (
+          this.runtime === runtime &&
+          this.activeRequests.delete(requestId)
+        ) {
           this.postError(requestId, method, error);
         }
       },
       onFatal: (error) => {
-        this.handleWorkerFatal(error);
+        this.handleWorkerFatal(runtime, error);
       },
     });
     this.runtime = runtime;
     this.runtimePromise = runtime
       .start()
       .then(() => {
+        if (this.disposed || this.runtime !== runtime) {
+          throw new Error("Worker runtime was superseded during startup");
+        }
         this.onStatusChange?.("ready");
         return runtime;
       })
@@ -181,11 +200,39 @@ export class CapsuleController {
         if (this.runtime === runtime) {
           this.runtime = null;
           this.runtimePromise = null;
+          runtime.dispose();
         }
-        runtime.dispose();
         throw error;
       });
     return this.runtimePromise;
+  }
+
+  private cancelRequest(requestId: string): void {
+    if (!this.activeRequests.delete(requestId)) {
+      return;
+    }
+
+    const cancelledRuntime = this.runtime;
+    if (!cancelledRuntime) {
+      return;
+    }
+    this.runtime = null;
+    this.runtimePromise = null;
+    cancelledRuntime.cancel(requestId);
+
+    const interruptedMessage =
+      "Engine runtime restarted because another request was cancelled";
+    for (const [activeId, request] of this.activeRequests) {
+      this.postError(activeId, request.method, {
+        code: "engine-crash",
+        message: interruptedMessage,
+        retryable: true,
+      });
+    }
+    this.activeRequests.clear();
+    if (!this.disposed) {
+      this.onStatusChange?.("connected");
+    }
   }
 
   private handleWorkerResult(
@@ -238,11 +285,31 @@ export class CapsuleController {
       );
     }
     if (request.method === "choose-turn" && result.method === "choose-turn") {
+      const legalTurnIds = new Set(
+        request.payload.legalTurns.map(({ id }) => id),
+      );
+      if (
+        result.payload.positionRevision !== request.payload.position.revision ||
+        !legalTurnIds.has(result.payload.chosenTurnId)
+      ) {
+        return false;
+      }
+      const rankedTurns = result.payload.rankedTurns;
+      if (rankedTurns === undefined) {
+        return true;
+      }
+      const requestedCandidateLimit =
+        request.payload.settings.limits.candidateLimit ?? legalTurnIds.size;
+      const rankingLimit = Math.min(
+        requestedCandidateLimit,
+        legalTurnIds.size,
+      );
       return (
-        result.payload.positionRevision === request.payload.position.revision &&
-        request.payload.legalTurns.some(
-          ({ id }) => id === result.payload.chosenTurnId,
-        )
+        rankedTurns.length > 0 &&
+        rankedTurns.length <= rankingLimit &&
+        rankedTurns.every(({ turnId }) => legalTurnIds.has(turnId)) &&
+        rankedTurns.find(({ rank }) => rank === 1)?.turnId ===
+          result.payload.chosenTurnId
       );
     }
     if (request.method === "decide-cube" && result.method === "decide-cube") {
@@ -254,11 +321,13 @@ export class CapsuleController {
     return false;
   }
 
-  private handleWorkerFatal(error: Error): void {
-    const failedRuntime = this.runtime;
+  private handleWorkerFatal(runtime: WorkerRuntime, error: Error): void {
+    if (this.runtime !== runtime) {
+      return;
+    }
     this.runtime = null;
     this.runtimePromise = null;
-    failedRuntime?.dispose();
+    runtime.dispose();
     for (const [requestId, request] of this.activeRequests) {
       this.postError(requestId, request.method, {
         code: "engine-crash",

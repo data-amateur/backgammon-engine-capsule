@@ -4,6 +4,12 @@ import type {
   BepMethodPayloads,
   BepRequestId,
 } from "../protocol/types";
+import type { GnubgAssetUrls } from "./gnubgEngine";
+
+export interface CapsuleWorkerInitialize {
+  readonly kind: "capsule.worker-initialize";
+  readonly assets: GnubgAssetUrls;
+}
 
 export type CapsuleWorkerRequest = {
   [M in BepMethod]: {
@@ -24,12 +30,23 @@ export interface CapsuleWorkerDispose {
 }
 
 export type CapsuleToWorkerMessage =
+  | CapsuleWorkerInitialize
   | CapsuleWorkerRequest
   | CapsuleWorkerCancel
   | CapsuleWorkerDispose;
 
 export interface CapsuleWorkerReady {
   readonly kind: "capsule.worker-ready";
+}
+
+export interface CapsuleWorkerStartupError {
+  readonly kind: "capsule.worker-startup-error";
+  readonly error: BepEngineError;
+}
+
+export interface CapsuleWorkerFatal {
+  readonly kind: "capsule.worker-fatal";
+  readonly message: string;
 }
 
 export type CapsuleWorkerResult = {
@@ -50,5 +67,7 @@ export interface CapsuleWorkerError {
 
 export type WorkerToCapsuleMessage =
   | CapsuleWorkerReady
+  | CapsuleWorkerStartupError
+  | CapsuleWorkerFatal
   | CapsuleWorkerResult
   | CapsuleWorkerError;

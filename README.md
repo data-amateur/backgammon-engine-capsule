@@ -1,54 +1,64 @@
 # Backgammon engine capsule
 
-A separately hosted browser-engine endpoint for Backgammon Light. It accepts a
-single origin-checked `MessagePort`, speaks Backgammon Engine Protocol v1, and
-runs all engine decisions in a capsule-owned Worker.
+A separately hosted, public browser-engine endpoint for Backgammon Light. It
+accepts one origin-checked `MessagePort`, speaks Backgammon Engine Protocol v1
+(BEP v1), and runs GNU Backgammon decisions in a capsule-owned Worker.
 
-The active implementation is intentionally a tiny, deterministic, Apache-2.0
-mock. It chooses the first opaque legal-turn ID supplied by the authoritative
-server and chooses `no-double`/`take` when legal. Its purpose is to preserve a
-fast isolation/protocol baseline while the GNUbg/WASM backend is developed.
+The active engine is GNU Backgammon 1.08.003 compiled to WebAssembly. The
+browser Worker evaluates only the positions and authoritative legal choices
+provided through BEP; it does not receive authentication, room, socket, or user
+data and cannot mutate a game. The proprietary application remains in its own
+repository and deployment. It embeds this public capsule and communicates only
+through the versioned BEP v1 port contract.
 
-The repository preserves an authenticated GNU Backgammon 1.08.003 source
-archive and now builds a minimal GPL native harness with golden tests. The
-default browser build still uses only the mock: no GNUbg code, neural-network
-data, or native output is copied to `dist/` or served yet. A post-build
-allowlist enforces that boundary. See
-`NOTICE.md`, `THIRD_PARTY_NOTICES.md`, `third_party/gnubg/README.md`,
-and `docs/GNUBG-NATIVE.md` for the mixed-license source map, provenance, build,
-and licensing details.
+This is a mixed-license public repository. The capsule shell and protocol code
+are Apache-2.0 except where a file says otherwise. GNUbg, its adapter and ABI,
+the real engine Worker, generated module and data, and the relevant build
+sources are GPL-3.0-or-later. The old deterministic mock remains only as
+non-shipped test/reference code. See `NOTICE.md`,
+`THIRD_PARTY_NOTICES.md`, `third_party/gnubg/README.md`, and
+`docs/GNUBG-NATIVE.md` for the exact source and license map.
+
+The iframe/Worker split is a useful technical and maintenance boundary, not a
+legal exception. Keep the capsule, GNUbg artifacts, build scripts, notices,
+and complete corresponding source public and separate from the proprietary
+host, and obtain qualified legal advice before relying on that separation.
 
 ## Requirements
 
 - Node.js 20.19 or newer; Node 22 LTS is recommended (`.nvmrc` is included).
-- npm
+- npm.
 - `gpgv`, used to authenticate the pinned GNUbg upstream archive.
-- For the native GNUbg checkpoint: a C11 compiler, GNU Make, `tar`,
-  `patch`, `pkg-config`, and GLib 2.0 development headers.
-- A browser installed through Playwright for the browser suite.
-- Only for the WebAssembly builds and tests: the exact external Emscripten SDK
-  pinned in `toolchains/emscripten-lock.json`. It is required by both
-  `test:wasm-abi` and `test:gnubg-wasm`, but is not installed by npm or
-  required to run the mock capsule.
+- For native verification: a C11 compiler, GNU Make, `tar`, `patch`,
+  `pkg-config`, and GLib 2.0 development headers.
+- For development and browser builds: the exact external Emscripten SDK in
+  `toolchains/emscripten-lock.json`. npm does not install it. Follow
+  `docs/GNUBG-WASM.md` to install and activate Emscripten 6.0.5 outside this
+  repository.
+- Chromium installed through Playwright for the browser suite.
 
 ## Run locally
+
+Activate the pinned Emscripten SDK first, then run:
 
 ```bash
 npm ci
 npm run dev
 ```
 
-`npm ci` installs the exact development-tool versions in `package-lock.json`
-into the ignored `node_modules/` directory. Use `npm install` only when you
-intend to add or update a dependency and review the resulting lockfile change.
+`npm ci` installs the exact JavaScript development tools from
+`package-lock.json` into ignored `node_modules/`. Use `npm install` only when
+you intend to change dependencies and review the lockfile change.
 
-The server listens only on `http://localhost:4174` and fails if that port is
-occupied. The development parent allowlist defaults to exactly
+`npm run dev` authenticates and builds the real GNUbg evaluator, stages its
+browser distribution, builds the GPL Worker, and starts Vite at
+`http://localhost:4174`. It listens only on `127.0.0.1` and fails if the port
+is occupied. The local parent allowlist defaults to exactly
 `http://localhost:3000`.
 
-Copy `.env.example` to `.env.local` to change local origins. Production builds
-must set exact HTTPS values for `VITE_ALLOWED_PARENT_ORIGINS` and
-`VITE_CAPSULE_PUBLIC_ORIGIN`; comma-separated parent origins are supported.
+Copy `.env.example` to `.env.local` to change local origins. Loopback HTTP is
+accepted only outside production. Source and license URLs have safe local
+defaults for development; production requires explicit HTTPS URLs.
 
 ## Connect Backgammon Light
 
@@ -60,107 +70,135 @@ VITE_GNUBG_ENGINE_URL=http://localhost:4174/
 ```
 
 Restart the private Vite client after changing the file. Choose “GNU
-Backgammon” in the computer-opponent selector. A successful mock handshake
-should clear the preload toast without showing the built-in fallback, and the
-computer should make a legal move on its first turn.
+Backgammon” in the computer-opponent selector. A successful preload clears the
+engine-loading toast without activating the built-in fallback. The engine
+module initializes once in its Worker and that Worker is retained across games
+in the match. It is not downloaded and initialized again for each game.
 
-The private host requires iframe load, Worker initialization, and `hello` to
-finish inside ten seconds. Current decisions normally have a 500 ms requested
-budget plus a 2,000 ms host grace period; the mock responds immediately.
+The host remains authoritative: every checker result is one opaque legal-turn
+ID supplied by the server, and every cube result is one supplied legal action.
+The server must continue to validate and apply the choice.
+
+## Browser runtime
+
+The sandboxed iframe fetches the root `gnubg-engine.worker.js` without
+credentials and starts it from a Blob URL. That classic Worker dynamically
+imports one exact absolute, same-capsule, content-versioned
+`gnubg-wasm.mjs` URL. The Emscripten factory receives explicit absolute URLs
+for `gnubg-wasm.wasm` and `gnubg-wasm.data`; none is resolved relative to the
+Blob URL.
+
+Before announcing readiness, the Worker checks the complete ABI 1.0 runtime
+descriptor, allocates a 512-KiB caller-owned arena, and initializes GNUbg with
+the preloaded weights and match-equity paths. Emscripten memory may grow, so
+the marshaller obtains fresh heap views after every native call rather than
+retaining views into an older buffer.
+
+Synchronous GNUbg evaluation cannot be interrupted in place. A BEP cancel
+terminates the Worker, suppresses stale output, and makes the next request
+create and initialize a fresh Worker/module. Initialization failure, fatal
+engine failure, and malformed fatal output use the same recreation boundary.
+
+The pinned delivery files total about 1.37 MB uncompressed: approximately
+93 KB JavaScript, 161 KB WebAssembly, and 1.11 MB preloaded data. The current
+build starts with 32 MiB of WebAssembly memory and allows growth to 128 MiB.
+Actual transfer size depends on host compression and cache state; the staged
+manifest and `build-info.json` are authoritative for a particular build.
 
 ## Verification
 
+Run the ordinary host/native checks without Emscripten:
+
 ```bash
 npm run verify
+```
+
+With the pinned Emscripten SDK activated, run the linked evaluator, production-
+like browser build, and Chromium boundary tests:
+
+```bash
+npm run test:gnubg-wasm
+npm run build:verification
 npx playwright install chromium
 npm run test:e2e
 ```
 
-`npm run verify` runs every non-browser check, including every frozen
-wasm32 ABI size and offset, overflow-safe arena and UTF-8 tests, isolated
-fake-adapter lifecycle checks, successful and negative direct-versus-arena
-parity, and a separate real public-wrapper lifecycle process. Dedicated
-`test:wasm-abi-layout:sanitized` and `test:gnubg-native:sanitized`
-commands repeat the C boundary under ASan/UBSan, and CI runs them with Clang.
-With the separately installed pinned Emscripten SDK activated,
-`npm run test:wasm-abi` builds and instantiates a tiny ABI-only
-`.mjs + .wasm` module, while `npm run test:gnubg-wasm` builds and tests
-the real linked GNUbg evaluator with authenticated assets. Both commands write
-only ignored checkpoint artifacts, and neither alters the active mock Worker.
-A separate CI job runs both pinned-toolchain checks. Normal verification also
-makes a production-like browser build using the
-checked-in loopback-only verification configuration. It checks the pinned
-GNUbg archive's size, SHA-256 hash, detached signature, and exact signer
-fingerprint without
-accessing the user's GnuPG keyring. The native suite extracts that authenticated
-archive into an ignored work directory and performs a clean headless rebuild.
-The native build records its ambient compiler, target, flags, Make,
-`pkg-config`, and GLib versions in ignored `build-info.json`; it is repeatable
-but not yet a bit-for-bit reproducible build because those inputs are not
-pinned. The browser build also rejects any output outside the audited mock-only
-allowlist. The browser suite serves the built artifact, hosts a real parent at
-`http://localhost:3100`,
-embeds the capsule at port 4174 with
-`sandbox="allow-scripts"`, transfers the private channel, and tests hello,
-checker play, cube play, cancellation, a second rejected bootstrap, Blob
-Worker creation, CORS, and CSP. Chromium is the current automated baseline;
-Firefox and WebKit are release gates before claiming broad browser support.
+`npm run verify` checks authenticated source, deterministic match-equity
+generation, TypeScript, lint, unit tests, every frozen ABI layout/range rule,
+and native GNUbg goldens. Dedicated `test:wasm-abi-layout:sanitized` and
+`test:gnubg-native:sanitized` commands repeat the C boundary under ASan/UBSan.
 
-## Production hosting
+The Chromium suite embeds the real built capsule in an opaque cross-origin
+sandbox. Its checker and cube fixtures deliberately put GNUbg's exact golden
+choice after another legal option, so the old first-legal mock cannot pass. It
+also verifies ranking, Blob Worker recreation after cancellation, retry after
+a real `.wasm` 404, one-time port bootstrap, immutable engine asset headers,
+CORS/CORP, MIME types, CSP, and absence of console errors. See
+`docs/TESTING.md` for the full matrix.
 
-Production builds fail closed unless both trust-boundary variables are set.
-Create an uncommitted `.env.production.local` containing your real HTTPS
-origins, then build:
+## Production build and hosting
+
+Create an uncommitted `.env.production.local` with exact release values:
 
 ```dotenv
 VITE_ALLOWED_PARENT_ORIGINS=https://backgammon.example
 VITE_CAPSULE_PUBLIC_ORIGIN=https://engine.example
+VITE_BUILD_ID=gnubg-1.08.003-release.1
+VITE_SOURCE_URL=https://github.com/example/backgammon-engine-capsule/tree/immutable-release-tag
+VITE_LICENSE_URL=https://engine.example/LICENSES/GPL-3.0-or-later.txt
 ```
+
+`VITE_SOURCE_URL` must resolve to the complete corresponding source for the
+exact deployed build: authenticated upstream archive, patches, generated-side
+sources, adapter and Worker sources, build scripts, package lock, and toolchain
+lock. Prefer an immutable public tag or source archive, not a moving branch.
+`VITE_LICENSE_URL` must be the public GPL-3.0-or-later text. Production rejects
+missing metadata, non-HTTPS URLs, or unsafe build IDs.
+
+With the pinned SDK activated:
 
 ```bash
 npm run build
 ```
 
-`npm run build` emits `dist/`, including a `_headers` file for static hosts that
-support that convention. Confirm equivalent headers on the actual host:
+The build authenticates and rebuilds GNUbg, checks payload hashes against
+`build-info.json`, and stages the module, WebAssembly, data, build information,
+and Emscripten/musl notices under one
+`/engines/sha256-<content-digest>/` directory. The digest covers every file in
+that immutable engine directory. The Worker stays at the root and is served
+with `no-cache`, allowing loader fixes without pretending they are the same
+engine payload. `SOURCE.txt`, both license texts, and notices are included.
 
-- wildcard credentialless CORS for public Worker/WASM assets;
-- `Cross-Origin-Resource-Policy: cross-origin`;
-- a restrictive CSP with `worker-src blob:`;
-- exact private origins in `frame-ancestors`;
+`verify:dist` compares every staged size and SHA-256 hash, permits only the
+manifested files and expected Vite output, checks the WebAssembly magic and
+GPL Worker banner, rejects private build paths and stale mock runtime text, and
+requires the release metadata in the Worker.
+
+The generated `_headers` file is suitable only for hosts that implement that
+convention. Confirm equivalent behavior on the deployed host:
+
+- wildcard credentialless CORS and `Cross-Origin-Resource-Policy: cross-origin`;
+- exact allowed parent origins in `frame-ancestors`;
+- restrictive CSP with `worker-src blob:` and `wasm-unsafe-eval` but not
+  unrestricted `unsafe-eval`;
 - no `Access-Control-Allow-Credentials`;
-- immutable caching for hashed assets and no-cache entry HTML.
+- immutable one-year caching for the content-versioned engine directory;
+- no-cache entry HTML and root Worker; and
+- correct JavaScript, WebAssembly, and data MIME types.
 
 Do not add `X-Frame-Options: DENY` or `SAMEORIGIN`; cross-origin embedding by
-the explicitly allowed private application is intentional.
+the explicitly allowed private host is intentional.
 
-## GNUbg phase
+## Remaining release work
 
-GNUbg 1.08.003 is pinned, authenticated, and exercised through a clean,
-minimal native harness. The harness translates BEP-style absolute boards,
-independently matches supplied turns against GNUbg's complete legal set, and
-scores candidates through a typed C API. It remains deliberately absent from
-the browser runtime.
+Before a public production release, publish and configure the immutable source
+URL/tag, benchmark cold and warm startup and decisions on representative slow
+devices, and run the manual private-application integration across multiple
+games, cancellation, failure, and fallback. Firefox/WebKit portability and
+qualified license review also remain release gates.
 
-ABI 1.0 provides a bounded arena bridge for initialization, checker and cube
-decisions, reset, and terminal disposal. Fake-adapter tests, authenticated
-native checker/cube goldens, public-wrapper lifecycle tests, and sanitizer runs
-exercise that same marshalling path. Native verification also compares the
-original and embedded match-equity tables byte for byte after full extension.
-
-The pinned Emscripten 6.0.5 checkpoint now links the selected GNUbg evaluator,
-a narrow wasm-only compatibility runtime, authenticated embedded match-equity
-data, reduced caches, preloaded weights, and the public bridge into a real
-modularized wasm32 evaluator. Node tests cover recoverable invalid-weights and
-cache-allocation failures, fresh-module retries, checker and cube goldens,
-reset, and disposal. The active browser Worker is still the GPL-free mock:
-generated GNUbg artifacts remain ignored under `build/gnubg/wasm/` and are
-not copied to `public/` or `dist/`.
-
-All GNUbg source, patches, build scripts, modules, networks, license material,
-and exact corresponding-source archives must remain in this public capsule
-project—never in the proprietary application.
-
-See [the native harness guide](docs/GNUBG-NATIVE.md),
-[the WebAssembly checkpoint](docs/GNUBG-WASM.md), and
-[the roadmap](docs/GNUBG-ROADMAP.md) before continuing that work.
+See [the protocol](docs/BEP-v1.md),
+[architecture](docs/ARCHITECTURE.md),
+[native harness guide](docs/GNUBG-NATIVE.md),
+[WebAssembly integration](docs/GNUBG-WASM.md), and
+[roadmap](docs/GNUBG-ROADMAP.md).

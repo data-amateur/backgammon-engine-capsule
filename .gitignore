@@ -17,6 +17,8 @@ public/mock-engine.worker.js.map
 # Extracted GNUbg source and generated native/WASM build state
 third_party/gnubg/work/
 build/gnubg/
+build/browser-public/
+build/browser-assets-manifest.json
 
 # Emscripten must remain an external development dependency
 .emsdk/

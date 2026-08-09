@@ -1,8 +1,67 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { isLoopbackHostname } from "./src/shared/webUrl";
 
 const DEV_PARENT_ORIGIN = "http://localhost:3000";
 const DEV_CAPSULE_ORIGIN = "http://localhost:4174";
+const IMMUTABLE_CACHE_CONTROL =
+  "public, max-age=31536000, immutable";
+const repositoryRoot = path.dirname(fileURLToPath(import.meta.url));
+const generatedPublicRoot = path.join(repositoryRoot, "build/browser-public");
+const browserManifestPath = path.join(
+  repositoryRoot,
+  "build/browser-assets-manifest.json",
+);
+
+interface BrowserAssetManifest {
+  readonly schemaVersion: number;
+  readonly mode: string;
+  readonly engine: string;
+  readonly publicBase: string;
+  readonly capsuleOrigin: string;
+  readonly buildId: string;
+  readonly sourceUrl: string;
+  readonly licenseUrl: string;
+  readonly files: readonly {
+    readonly path: string;
+  }[];
+}
+
+function readBrowserManifest(mode: string): BrowserAssetManifest {
+  let manifest: BrowserAssetManifest;
+  try {
+    manifest = JSON.parse(
+      readFileSync(browserManifestPath, "utf8"),
+    ) as BrowserAssetManifest;
+  } catch (error) {
+    throw new Error(
+      "Generated GNUbg browser assets are missing; run the staged real-engine build first",
+      { cause: error },
+    );
+  }
+  if (
+    manifest.schemaVersion !== 1 ||
+    manifest.mode !== mode ||
+    manifest.engine !== "gnubg" ||
+    !/^\/engines\/sha256-[0-9a-f]{64}\/$/u.test(manifest.publicBase) ||
+    !manifest.buildId ||
+    !manifest.sourceUrl ||
+    !manifest.licenseUrl ||
+    !Array.isArray(manifest.files) ||
+    !manifest.files.every(
+      (file) =>
+        typeof file === "object" &&
+        file !== null &&
+        typeof file.path === "string" &&
+        file.path.length > 0,
+    )
+  ) {
+    throw new Error("Generated GNUbg browser asset manifest is invalid");
+  }
+  return manifest;
+}
 
 function exactOrigin(value: string, variableName: string): string {
   const url = new URL(value.trim());
@@ -24,7 +83,7 @@ function exactOrigins(value: string, variableName: string): string[] {
     .split(",")
     .filter((origin) => origin.trim().length > 0)
     .map((origin) => exactOrigin(origin, variableName))
-    .filter((origin, index, origins) => origins.indexOf(origin) === index);
+    .filter((origin, index, allOrigins) => allOrigins.indexOf(origin) === index);
   if (origins.length === 0 || value.split(",").some((origin) => !origin.trim())) {
     throw new Error(`${variableName} must contain exact origins`);
   }
@@ -37,7 +96,7 @@ function createSecurityHeaders(
 ): Record<string, string> {
   const contentSecurityPolicy = [
     "default-src 'none'",
-    `script-src 'self' ${capsuleOrigin}`,
+    `script-src 'self' 'wasm-unsafe-eval' ${capsuleOrigin}`,
     `connect-src 'self' ${capsuleOrigin}`,
     "worker-src blob:",
     `style-src 'self' ${capsuleOrigin}`,
@@ -62,6 +121,7 @@ function createSecurityHeaders(
 
 function emitStaticHostHeaders(
   headers: Readonly<Record<string, string>>,
+  engineAssetPattern: string,
 ): Plugin {
   return {
     name: "emit-capsule-security-headers",
@@ -81,14 +141,53 @@ function emitStaticHostHeaders(
           formattedHeaders,
           "  Cache-Control: public, max-age=31536000, immutable",
           "",
+          engineAssetPattern,
+          formattedHeaders,
+          "  Cache-Control: public, max-age=31536000, immutable",
+          "",
         ].join("\n"),
       });
     },
   };
 }
 
+function applyPreviewCachePolicy(
+  immutableAssetPaths: ReadonlySet<string>,
+): Plugin {
+  return {
+    name: "apply-capsule-preview-cache-policy",
+    configurePreviewServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const rawUrl = request.url;
+        if (!rawUrl?.startsWith("/") || rawUrl.startsWith("//")) {
+          next();
+          return;
+        }
+        let pathname: string;
+        try {
+          pathname = decodeURI(new URL(
+            rawUrl,
+            "http://preview.invalid",
+          ).pathname);
+        } catch {
+          next();
+          return;
+        }
+        if (immutableAssetPaths.has(pathname)) {
+          response.setHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL);
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "VITE_");
+  const manifest = readBrowserManifest(mode);
+  const env = {
+    ...loadEnv(mode, repositoryRoot, "VITE_"),
+    ...process.env,
+  };
   const production = mode === "production";
   const configuredParentOrigins =
     env.VITE_ALLOWED_PARENT_ORIGINS ??
@@ -109,10 +208,42 @@ export default defineConfig(({ mode }) => {
     configuredCapsuleOrigin,
     "VITE_CAPSULE_PUBLIC_ORIGIN",
   );
-  const headers = createSecurityHeaders(parentOrigins, capsuleOrigin);
+  if (capsuleOrigin !== manifest.capsuleOrigin) {
+    throw new Error(
+      "VITE_CAPSULE_PUBLIC_ORIGIN does not match the staged GNUbg assets",
+    );
+  }
+  if (
+    production &&
+    (!env.VITE_BUILD_ID?.trim() ||
+      !env.VITE_SOURCE_URL?.trim() ||
+      !env.VITE_LICENSE_URL?.trim())
+  ) {
+    throw new Error(
+      "Production builds require VITE_BUILD_ID, VITE_SOURCE_URL, and VITE_LICENSE_URL",
+    );
+  }
 
+  const headers = createSecurityHeaders(parentOrigins, capsuleOrigin);
+  const immutableEngineAssetPaths = new Set(
+    manifest.files
+      .map(({ path: publicPath }) => `/${publicPath}`)
+      .filter((publicPath) => publicPath.startsWith(manifest.publicBase)),
+  );
+  if (immutableEngineAssetPaths.size === 0) {
+    throw new Error("Generated GNUbg browser manifest has no engine assets");
+  }
   return {
-    plugins: [emitStaticHostHeaders(headers)],
+    publicDir: generatedPublicRoot,
+    define: {
+      "import.meta.env.VITE_GNUBG_ASSET_BASE": JSON.stringify(
+        manifest.publicBase,
+      ),
+    },
+    plugins: [
+      emitStaticHostHeaders(headers, `${manifest.publicBase}*`),
+      applyPreviewCachePolicy(immutableEngineAssetPaths),
+    ],
     server: {
       host: "127.0.0.1",
       port: 4174,

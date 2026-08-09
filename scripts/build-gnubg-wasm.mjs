@@ -408,7 +408,7 @@ writeFileSync(
   `${JSON.stringify(
     {
       buildKind:
-        "real GNUbg 1.08.003 wasm32 evaluator checkpoint; not yet the active Worker",
+        "real GNUbg 1.08.003 wasm32 evaluator for the browser capsule Worker",
       abiVersion: "1.0",
       gnubgVersion: sourceLock.version,
       archiveSha256: sourceLock.archive.sha256,
