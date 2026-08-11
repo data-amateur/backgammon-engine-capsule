@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
 
 interface EngineMetadata {
   readonly engineId: string;
@@ -84,9 +85,11 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
 }) => {
   const workerUrls: string[] = [];
   const engineAssetUrls = new Set<string>();
+  const requestedUrls: string[] = [];
   const consoleErrors: string[] = [];
   page.on("worker", (worker) => workerUrls.push(worker.url()));
   page.on("request", (assetRequest) => {
+    requestedUrls.push(assetRequest.url());
     if (isEngineAsset(assetRequest.url())) {
       engineAssetUrls.add(assetRequest.url());
     }
@@ -127,6 +130,14 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
     },
   });
   expect(results.hello.payload.metadata.buildId).not.toContain("mock");
+  const sourceUrl = results.hello.payload.metadata.license.sourceUrl;
+  expect(sourceUrl).toBeDefined();
+  const sourcePath = new URL(sourceUrl!).pathname;
+  const sourceMatch = sourcePath.match(
+    /^\/sources\/sha256-([0-9a-f]{64})\/backgammon-engine-capsule-source\.tar\.gz$/u,
+  );
+  expect(sourceMatch).not.toBeNull();
+  expect(requestedUrls).not.toContain(sourceUrl);
   expect(
     results.hello.payload.metadata.runtime.approximateDownloadBytes,
   ).toBeGreaterThan(1_000_000);
@@ -198,6 +209,37 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
   );
   const missingResponse = await request.get(missingEngineAsset.href);
   expect(missingResponse.headers()["cache-control"]).toBe("no-cache");
+
+  const sourceResponse = await request.get(sourceUrl!);
+  expect(sourceResponse.ok()).toBe(true);
+  expect(sourceResponse.headers()["access-control-allow-origin"]).toBe("*");
+  expect(sourceResponse.headers()["cross-origin-resource-policy"]).toBe(
+    "cross-origin",
+  );
+  expect(sourceResponse.headers()["cache-control"]).toBe(
+    "public, max-age=31536000, immutable",
+  );
+  expect(sourceResponse.headers()["content-type"]).toContain(
+    "application/gzip",
+  );
+  expect(sourceResponse.headers()["content-encoding"]).toBe("identity");
+  expect(sourceResponse.headers()["content-disposition"]).toBe(
+    "attachment; filename=backgammon-engine-capsule-source.tar.gz",
+  );
+  const sourceBytes = await sourceResponse.body();
+  expect(sourceBytes.subarray(0, 2)).toEqual(Buffer.from([0x1f, 0x8b]));
+  expect(createHash("sha256").update(sourceBytes).digest("hex")).toBe(
+    sourceMatch![1],
+  );
+
+  const sourceNoticeResponse = await request.get(
+    "http://localhost:4174/SOURCE.txt",
+  );
+  expect(sourceNoticeResponse.ok()).toBe(true);
+  expect(sourceNoticeResponse.headers()["cache-control"]).toBe("no-cache");
+  const sourceNotice = await sourceNoticeResponse.text();
+  expect(sourceNotice).toContain(sourceUrl!);
+  expect(sourceNotice).toContain(sourceMatch![1]);
 });
 
 test("recreates a fresh module after a real WASM asset failure", async ({

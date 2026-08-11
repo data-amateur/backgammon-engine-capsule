@@ -20,6 +20,7 @@ const mode = process.argv[2] ?? "development";
 const production = mode === "production";
 const env = { ...loadEnv(mode, repositoryRoot, "VITE_"), ...process.env };
 const wasmBuildRoot = path.join(repositoryRoot, "build/gnubg/wasm");
+const sourceBuildRoot = path.join(repositoryRoot, "build/source");
 const publicRoot = path.join(repositoryRoot, "build/browser-public");
 const manifestFile = path.join(
   repositoryRoot,
@@ -45,6 +46,10 @@ const payloadFiles = [
   "gnubg-wasm.wasm",
   "gnubg-wasm.data",
 ];
+const sourceArchiveName = "backgammon-engine-capsule-source.tar.gz";
+const sourceInfoName = "source-bundle-info.json";
+const sourceArchiveFile = path.join(sourceBuildRoot, sourceArchiveName);
+const sourceInfoFile = path.join(sourceBuildRoot, sourceInfoName);
 
 function sha256Bytes(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -108,16 +113,47 @@ for (const fileName of engineFiles) {
     "Real GNUbg WebAssembly build artifact",
   );
 }
+requireRegularFile(sourceArchiveFile, "Corresponding-source archive");
+requireRegularFile(sourceInfoFile, "Corresponding-source bundle information");
 
 const buildInfo = JSON.parse(
   readFileSync(path.join(wasmBuildRoot, "build-info.json"), "utf8"),
 );
+const sourceInfo = JSON.parse(readFileSync(sourceInfoFile, "utf8"));
 if (
   buildInfo.abiVersion !== "1.0" ||
   buildInfo.gnubgVersion !== "1.08.003" ||
   !Array.isArray(buildInfo.artifacts)
 ) {
   throw new Error("GNUbg build-info.json has an unexpected identity or shape");
+}
+if (
+  sourceInfo.schemaVersion !== 1 ||
+  sourceInfo.archive !== sourceArchiveName ||
+  sourceInfo.archiveSize !== statSync(sourceArchiveFile).size ||
+  sourceInfo.archiveSha256 !== sha256File(sourceArchiveFile) ||
+  !/^[0-9a-f]{40}$/u.test(sourceInfo.repositoryCommit) ||
+  typeof sourceInfo.workingTreeClean !== "boolean" ||
+  !/^[0-9a-f]{64}$/u.test(sourceInfo.sourceTreeSha256) ||
+  !Number.isSafeInteger(sourceInfo.fileCount) ||
+  sourceInfo.fileCount <= 0 ||
+  sourceInfo.gnubgVersion !== buildInfo.gnubgVersion ||
+  buildInfo.correspondingSource?.archive !== sourceInfo.archive ||
+  buildInfo.correspondingSource?.archiveSize !== sourceInfo.archiveSize ||
+  buildInfo.correspondingSource?.archiveSha256 !== sourceInfo.archiveSha256 ||
+  buildInfo.correspondingSource?.manifestSha256 !== sourceInfo.manifestSha256 ||
+  buildInfo.correspondingSource?.repositoryCommit !==
+    sourceInfo.repositoryCommit ||
+  buildInfo.correspondingSource?.workingTreeClean !==
+    sourceInfo.workingTreeClean ||
+  buildInfo.correspondingSource?.sourceTreeSha256 !==
+    sourceInfo.sourceTreeSha256 ||
+  buildInfo.correspondingSource?.fileCount !== sourceInfo.fileCount ||
+  (production && !sourceInfo.workingTreeClean)
+) {
+  throw new Error(
+    "Corresponding-source archive does not match the GNUbg build",
+  );
 }
 
 for (const payloadName of payloadFiles) {
@@ -143,6 +179,9 @@ for (const fileName of engineFiles) {
 }
 const contentVersion = `sha256-${contentDigest.digest("hex")}`;
 const publicBase = `/engines/${contentVersion}/`;
+const sourceVersion = `sha256-${sourceInfo.archiveSha256}`;
+const sourcePublicBase = `/sources/${sourceVersion}/`;
+const sourcePublicPath = `sources/${sourceVersion}/${sourceArchiveName}`;
 const enginePublicRoot = path.join(
   publicRoot,
   "engines",
@@ -154,14 +193,20 @@ const capsuleOrigin = publicUrl(
   "VITE_CAPSULE_PUBLIC_ORIGIN",
   production ? undefined : "http://localhost:4174/",
 );
+const sourceBundleUrl = new URL(`/${sourcePublicPath}`, capsuleOrigin).href;
 const buildId = safeBuildId(
   env.VITE_BUILD_ID || (production ? undefined : `gnubg-${mode}`),
 );
-const sourceUrl = publicUrl(
-  env.VITE_SOURCE_URL,
-  "VITE_SOURCE_URL",
-  production ? undefined : new URL("SOURCE.txt", capsuleOrigin).href,
-);
+const configuredSourceUrl = env.VITE_SOURCE_URL?.trim();
+if (
+  configuredSourceUrl &&
+  publicUrl(configuredSourceUrl, "VITE_SOURCE_URL") !== sourceBundleUrl
+) {
+  throw new Error(
+    "VITE_SOURCE_URL must equal the generated immutable corresponding-source URL",
+  );
+}
+const sourceUrl = sourceBundleUrl;
 const licenseUrl = publicUrl(
   env.VITE_LICENSE_URL,
   "VITE_LICENSE_URL",
@@ -211,6 +256,11 @@ for (const fileName of engineFiles) {
       : "engine-notice",
   );
 }
+stageFile(
+  sourceArchiveFile,
+  sourcePublicPath,
+  "corresponding-source-archive",
+);
 
 const sourceNotice = [
   "BACKGAMMON ENGINE CAPSULE CORRESPONDING SOURCE",
@@ -218,12 +268,20 @@ const sourceNotice = [
   `Build ID: ${buildId}`,
   `Engine content version: ${contentVersion}`,
   `Source: ${sourceUrl}`,
+  `Source archive SHA-256: ${sourceInfo.archiveSha256}`,
+  `Source archive bytes: ${sourceInfo.archiveSize}`,
+  `Repository commit: ${sourceInfo.repositoryCommit}`,
+  `Source tree SHA-256: ${sourceInfo.sourceTreeSha256}`,
+  `Embedded manifest SHA-256: ${sourceInfo.manifestSha256}`,
+  `Source files: ${sourceInfo.fileCount}`,
+  `Clean source tree: ${sourceInfo.workingTreeClean}`,
   `GNUbg version: ${buildInfo.gnubgVersion}`,
   `GNUbg source archive SHA-256: ${buildInfo.archiveSha256}`,
   "",
   "The source location must provide the complete source for this exact build,",
   "including the authenticated GNUbg archive, patches, capsule adapter and",
-  "Worker sources, build scripts, package lock, and toolchain lock.",
+  "Worker sources, build scripts, tests, package lock, toolchain lock,",
+  "licenses, and notices.",
   "",
 ].join("\n");
 const sourceNoticePath = path.join(publicRoot, "SOURCE.txt");
@@ -241,7 +299,7 @@ writeFileSync(
   manifestFile,
   `${JSON.stringify(
     {
-      schemaVersion: 1,
+      schemaVersion: 2,
       mode,
       engine: "gnubg",
       gnubgVersion: buildInfo.gnubgVersion,
@@ -250,6 +308,18 @@ writeFileSync(
       publicBase,
       buildId,
       sourceUrl,
+      sourceBundle: {
+        publicBase: sourcePublicBase,
+        path: sourcePublicPath,
+        url: sourceBundleUrl,
+        size: sourceInfo.archiveSize,
+        sha256: sourceInfo.archiveSha256,
+        manifestSha256: sourceInfo.manifestSha256,
+        repositoryCommit: sourceInfo.repositoryCommit,
+        workingTreeClean: sourceInfo.workingTreeClean,
+        sourceTreeSha256: sourceInfo.sourceTreeSha256,
+        fileCount: sourceInfo.fileCount,
+      },
       licenseUrl,
       capsuleOrigin: new URL(capsuleOrigin).origin,
       files: stagedFiles,

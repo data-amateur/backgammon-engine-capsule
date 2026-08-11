@@ -12,6 +12,7 @@ import {
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
+import { verifySourceBundle } from "./verify-source-bundle.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -45,6 +46,7 @@ const emsdkRoot = process.env.EMSDK
   : path.isAbsolute(compiler)
     ? path.resolve(path.dirname(compiler), "../..")
     : null;
+const sourceBundle = verifySourceBundle();
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -412,6 +414,17 @@ writeFileSync(
       abiVersion: "1.0",
       gnubgVersion: sourceLock.version,
       archiveSha256: sourceLock.archive.sha256,
+      correspondingSource: {
+        archive: sourceBundle.archive,
+        archiveSize: sourceBundle.archiveSize,
+        archiveSha256: sourceBundle.archiveSha256,
+        manifest: sourceBundle.manifest,
+        manifestSha256: sourceBundle.manifestSha256,
+        repositoryCommit: sourceBundle.repositoryCommit,
+        workingTreeClean: sourceBundle.workingTreeClean,
+        sourceTreeSha256: sourceBundle.sourceTreeSha256,
+        fileCount: sourceBundle.fileCount,
+      },
       sourcePatches: preparedSource.patches,
       generatedMatchEquity: {
         file: path.relative(repositoryRoot, generatedMatchEquity),

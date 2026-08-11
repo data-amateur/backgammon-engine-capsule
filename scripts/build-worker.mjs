@@ -28,10 +28,17 @@ if (!existsSync(manifestPath)) {
 }
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 if (
-  manifest.schemaVersion !== 1 ||
+  manifest.schemaVersion !== 2 ||
   manifest.mode !== mode ||
   manifest.engine !== "gnubg" ||
   !/^\/engines\/sha256-[0-9a-f]{64}\/$/u.test(manifest.publicBase) ||
+  manifest.sourceBundle?.url !== manifest.sourceUrl ||
+  !/^\/sources\/sha256-[0-9a-f]{64}\/$/u.test(
+    manifest.sourceBundle?.publicBase,
+  ) ||
+  !manifest.sourceBundle?.path?.startsWith(
+    manifest.sourceBundle.publicBase.slice(1),
+  ) ||
   !Array.isArray(manifest.files)
 ) {
   throw new Error("Browser asset manifest has an unexpected shape or mode");

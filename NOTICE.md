@@ -2,23 +2,35 @@
 
 Copyright 2026 Backgammon Light contributors.
 
-This is a mixed-license source repository. The original capsule shell, mock
-engine, TypeScript protocol code, documentation, and build scripts are
+This is a mixed-license public source repository. The capsule shell, BEP
+protocol code, documentation, and original project build/test code are
 Apache-2.0 under the root `LICENSE`, except where a file says otherwise.
+The retired deterministic mock remains only as non-shipped test/reference
+code.
 
-The authenticated GNU Backgammon source release under
-`third_party/gnubg/upstream/`, the capsule-authored GNUbg patches under
-`third_party/gnubg/patches/`, the GPL-marked match-equity generator, and the
-adapter, wasm32 runtime and ABI boundary, and their tests under `native/gnubg/`
-are GPL-3.0-or-later. See `LICENSES/GPL-3.0-or-later.txt` and
-`THIRD_PARTY_NOTICES.md`.
+GNU Backgammon 1.08.003, the ordered compatibility patches, match-equity
+generator, native adapter, wasm32 runtime and ABI bridge, real engine Worker,
+generated WebAssembly module and data package, and their GPL-side tests are
+GPL-3.0-or-later. See `LICENSES/GPL-3.0-or-later.txt`,
+`THIRD_PARTY_NOTICES.md`, and the file-level SPDX notices.
 
-`npm run test:gnubg-wasm` generates an ignored GPL-covered GNUbg module and
-data package under `build/gnubg/wasm/`. They contain linked GNUbg program code
-and its neural-network weights and are test artifacts, not Apache-2.0 capsule
-files.
+The browser capsule currently serves the real GNUbg engine. Its normal
+three-file engine payload is approximately 1.37 MB uncompressed:
+`gnubg-wasm.mjs`, `gnubg-wasm.wasm`, and `gnubg-wasm.data`. The data
+package contains GNUbg's authenticated neural-network weights and the
+temporary readable match-equity XML path input. Emscripten and musl notices
+are distributed beside the content-versioned engine assets.
 
-The default browser capsule contains the original deterministic mock engine and
-no GNU Backgammon binary, neural-network data, or other GPL engine component.
-The generated evaluator is not copied into `public/` or `dist/` and is not
-served by the current capsule build.
+Every browser build first creates and verifies a deterministic archive of the
+complete source snapshot used for that build. It is published separately at:
+
+```text
+/sources/sha256-<archive-hash>/backgammon-engine-capsule-source.tar.gz
+```
+
+The archive hash, source-tree hash, repository commit, and embedded source
+manifest are bound into the GNUbg `build-info.json`, browser asset manifest,
+and `SOURCE.txt`. Production builds require a clean Git working tree. The
+source archive is a compliance download: the Worker advertises its URL in BEP
+metadata but never fetches it while loading or making decisions, so it does
+not increase the normal 1.37 MB engine payload.

@@ -1,8 +1,9 @@
 # GNU Backgammon upstream source
 
 This directory preserves the exact authenticated GNU Backgammon release used
-by the native and WebAssembly evaluator checkpoints. It is not part of the
-current mock Worker build and is not copied into `dist/`.
+by the native harness and active WebAssembly evaluator. The signed archive is
+not a runtime engine asset, but is preserved inside the complete corresponding-
+source archive distributed with every browser build.
 
 ## Pinned release
 
@@ -51,7 +52,7 @@ notice.
 No GNUbg source, weights, build output, or patches may be copied into the
 proprietary Backgammon Light repository or deployment.
 
-## Native checkpoint
+## Native harness
 
 Run `npm run test:gnubg-native` from the capsule repository root. It verifies
 the archive again, replaces the ignored extraction with a fresh copy, applies
@@ -76,5 +77,20 @@ authorship, and generated-table provenance are documented in
 [the patch README](patches/README.md).
 
 The native adapter and executable link GNUbg and are GPL-3.0-or-later. The
-default browser mock remains separate and does not include these generated
-artifacts.
+same adapter and arena ABI are compiled into the active browser WebAssembly
+engine; generated native executables remain ignored local artifacts.
+
+## Browser distribution and corresponding source
+
+Before WebAssembly is built, `npm run build:source` creates and verifies a
+deterministic complete source archive at:
+
+```text
+/sources/sha256-<archive-hash>/backgammon-engine-capsule-source.tar.gz
+```
+
+It includes the signed GNUbg archive, signature and key, patches, adapter and
+Worker sources, scripts, locks, licenses, and notices. Its identity is bound
+into `build-info.json`, the browser manifest, and `SOURCE.txt`; production
+requires a clean Git tree. BEP advertises the URL, but runtime never fetches
+the archive, so the normal engine payload remains about 1.37 MB uncompressed.

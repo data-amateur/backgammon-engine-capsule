@@ -54,10 +54,11 @@ The capsule validates that every supplied step consumes an available die and
 moves in the correct direction, but it does not independently regenerate the
 host's legal-turn set.
 
-The capsule identity must be `gnubg-capsule` and its runtime transport must be
-`iframe`. The mock advertises standard match/money play, all five accepted
-strength presets, checker play, and cube play. It does not claim evaluation,
-rankings, or rollouts.
+The capsule identity is `gnubg-capsule` and its runtime transport is
+`iframe`. GNUbg advertises standard match/money play, all five accepted
+strength presets, checker and cube play, ranked checker choices, deterministic
+output, and cancellation through Worker termination. It does not claim
+arbitrary position evaluation or rollouts.
 
 Payloads are limited to 2 MiB, depth 16, 100,000 nodes, 4,096 legal turns, and
 four checker steps. Match play is limited to length 64 and cube value 64;

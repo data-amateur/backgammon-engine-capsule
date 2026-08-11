@@ -16,7 +16,7 @@ if (!existsSync(manifestPath)) {
 }
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 if (
-  manifest.schemaVersion !== 1 ||
+  manifest.schemaVersion !== 2 ||
   manifest.engine !== "gnubg" ||
   !Array.isArray(manifest.files)
 ) {

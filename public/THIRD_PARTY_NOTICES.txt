@@ -10,8 +10,10 @@ The complete GPL v3 text is provided in LICENSES/GPL-3.0-or-later.txt.
 Upstream project: https://www.gnu.org/software/gnubg/
 
 The exact authenticated upstream archive, capsule patches, adapter and Worker
-sources, build scripts, and toolchain lock are available from the corresponding
-source location recorded in SOURCE.txt.
+sources, build scripts, tests, package lock, toolchain lock, licenses, and
+notices are provided in the content-addressed corresponding-source archive
+recorded in SOURCE.txt. That archive is deployed beside this distribution but
+is not fetched by normal engine startup.
 
 Kazaross-XG2 match-equity data
 

@@ -29,7 +29,12 @@ host, and obtain qualified legal advice before relying on that separation.
 - Node.js 20.19 or newer; Node 22 LTS is recommended (`.nvmrc` is included).
 - npm.
 - `gpgv`, used to authenticate the pinned GNUbg upstream archive.
-- For native verification: a C11 compiler, GNU Make, `tar`, `patch`,
+- GNU tar 1.28 or newer, required for deterministic corresponding-source
+  archives. The scripts prefer `gtar` and then `tar` from `PATH`; set
+  `BGC_GNU_TAR` to an absolute GNU tar path when neither name selects it.
+  macOS normally needs the Homebrew `gnu-tar` package; native Windows needs a
+  GNU tar installation such as MSYS2, or use WSL.
+- For native verification: a C11 compiler, GNU Make, `patch`,
   `pkg-config`, and GLib 2.0 development headers.
 - For development and browser builds: the exact external Emscripten SDK in
   `toolchains/emscripten-lock.json`. npm does not install it. Follow
@@ -57,8 +62,9 @@ is occupied. The local parent allowlist defaults to exactly
 `http://localhost:3000`.
 
 Copy `.env.example` to `.env.local` to change local origins. Loopback HTTP is
-accepted only outside production. Source and license URLs have safe local
-defaults for development; production requires explicit HTTPS URLs.
+accepted only outside production. The corresponding-source URL is generated
+from the capsule origin and exact archive digest. The license URL has a safe
+local default; production requires an explicit HTTPS value.
 
 ## Connect Backgammon Light
 
@@ -124,8 +130,9 @@ npm run test:e2e
 ```
 
 `npm run verify` checks authenticated source, deterministic match-equity
-generation, TypeScript, lint, unit tests, every frozen ABI layout/range rule,
-and native GNUbg goldens. Dedicated `test:wasm-abi-layout:sanitized` and
+generation, a byte-reproducible and tamper-detecting corresponding-source
+archive, TypeScript, lint, unit tests, every frozen ABI layout/range rule, and
+native GNUbg goldens. Dedicated `test:wasm-abi-layout:sanitized` and
 `test:gnubg-native:sanitized` commands repeat the C boundary under ASan/UBSan.
 
 The Chromium suite embeds the real built capsule in an opaque cross-origin
@@ -133,7 +140,8 @@ sandbox. Its checker and cube fixtures deliberately put GNUbg's exact golden
 choice after another legal option, so the old first-legal mock cannot pass. It
 also verifies ranking, Blob Worker recreation after cancellation, retry after
 a real `.wasm` 404, one-time port bootstrap, immutable engine asset headers,
-CORS/CORP, MIME types, CSP, and absence of console errors. See
+CORS/CORP, MIME types, CSP, absence of console errors, and availability of the
+exact advertised source archive without downloading it during startup. See
 `docs/TESTING.md` for the full matrix.
 
 ## Production build and hosting
@@ -144,16 +152,14 @@ Create an uncommitted `.env.production.local` with exact release values:
 VITE_ALLOWED_PARENT_ORIGINS=https://backgammon.example
 VITE_CAPSULE_PUBLIC_ORIGIN=https://engine.example
 VITE_BUILD_ID=gnubg-1.08.003-release.1
-VITE_SOURCE_URL=https://github.com/example/backgammon-engine-capsule/tree/immutable-release-tag
 VITE_LICENSE_URL=https://engine.example/LICENSES/GPL-3.0-or-later.txt
 ```
 
-`VITE_SOURCE_URL` must resolve to the complete corresponding source for the
-exact deployed build: authenticated upstream archive, patches, generated-side
-sources, adapter and Worker sources, build scripts, package lock, and toolchain
-lock. Prefer an immutable public tag or source archive, not a moving branch.
-`VITE_LICENSE_URL` must be the public GPL-3.0-or-later text. Production rejects
-missing metadata, non-HTTPS URLs, or unsafe build IDs.
+The build generates `VITE_SOURCE_URL` internally from the exact capsule
+origin and source-archive digest; an external or moving source URL cannot be
+substituted accidentally. `VITE_LICENSE_URL` must be the public
+GPL-3.0-or-later text. Production rejects a dirty tracked or untracked source
+tree, missing metadata, non-HTTPS URLs, or unsafe build IDs.
 
 With the pinned SDK activated:
 
@@ -161,18 +167,39 @@ With the pinned SDK activated:
 npm run build
 ```
 
-The build authenticates and rebuilds GNUbg, checks payload hashes against
-`build-info.json`, and stages the module, WebAssembly, data, build information,
-and Emscripten/musl notices under one
+The build first snapshots every tracked and nonignored public source file,
+normalizes archive metadata, embeds a per-file SHA-256 manifest, and verifies
+the archive before compiling. A production source snapshot must be clean. It
+includes the signed GNUbg archive/signature/key, ordered patches, capsule
+sources, build scripts, tests, package lock, toolchain lock, licenses, and
+notices. The resulting archive is served separately at
+`/sources/sha256-<archive-digest>/backgammon-engine-capsule-source.tar.gz`.
+It adds about 14.3 MB of deployment storage but is never fetched by normal
+engine startup.
+
+Source packaging validates that the selected archive tool identifies itself
+as GNU tar 1.28 or newer. If `gtar` or `tar` on `PATH` selects BSD tar, set
+the override in the shell that runs npm, for example
+`BGC_GNU_TAR=/opt/homebrew/bin/gtar npm run build`.
+
+The build then authenticates and rebuilds GNUbg, binds the source commit/tree
+and archive hashes into `build-info.json`, checks payload hashes, and stages
+the module, WebAssembly, data, build information, and Emscripten/musl notices
+under one
 `/engines/sha256-<content-digest>/` directory. The digest covers every file in
-that immutable engine directory. The Worker stays at the root and is served
-with `no-cache`, allowing loader fixes without pretending they are the same
-engine payload. `SOURCE.txt`, both license texts, and notices are included.
+that immutable engine directory. The source archive has its own independent
+content address and does not count toward the engine's 1.37 MB runtime payload.
+The Worker stays at the root and is served with `no-cache`, allowing loader
+fixes without pretending they are the same engine payload. `SOURCE.txt`
+records the archive URL, bytes, SHA-256, repository commit, and source-tree
+digest. Both license texts and notices are included.
 
 `verify:dist` compares every staged size and SHA-256 hash, permits only the
 manifested files and expected Vite output, checks the WebAssembly magic and
-GPL Worker banner, rejects private build paths and stale mock runtime text, and
-requires the release metadata in the Worker.
+GPL Worker banner, rejects private build paths and stale mock runtime text,
+extracts and verifies the one explicitly manifested source archive, rejects
+all other archives, and requires matching source provenance in the Worker,
+browser manifest, `SOURCE.txt`, and `build-info.json`.
 
 The generated `_headers` file is suitable only for hosts that implement that
 convention. Confirm equivalent behavior on the deployed host:
@@ -183,6 +210,7 @@ convention. Confirm equivalent behavior on the deployed host:
   unrestricted `unsafe-eval`;
 - no `Access-Control-Allow-Credentials`;
 - immutable one-year caching for the content-versioned engine directory;
+- immutable one-year caching for the content-addressed source directory;
 - no-cache entry HTML and root Worker; and
 - correct JavaScript, WebAssembly, and data MIME types.
 
@@ -191,11 +219,12 @@ the explicitly allowed private host is intentional.
 
 ## Remaining release work
 
-Before a public production release, publish and configure the immutable source
-URL/tag, benchmark cold and warm startup and decisions on representative slow
-devices, and run the manual private-application integration across multiple
-games, cancellation, failure, and fallback. Firefox/WebKit portability and
-qualified license review also remain release gates.
+Before a public production release, publish the complete generated static
+artifact atomically, preserve an immutable signed tag or release attestation,
+benchmark cold and warm startup and decisions on representative slow devices,
+and run the manual private-application integration across multiple games,
+cancellation, failure, and fallback. Firefox/WebKit portability and qualified
+license review also remain release gates.
 
 See [the protocol](docs/BEP-v1.md),
 [architecture](docs/ARCHITECTURE.md),

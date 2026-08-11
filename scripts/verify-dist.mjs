@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifySourceBundle } from "./verify-source-bundle.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -58,12 +59,31 @@ async function collectFiles(directory, prefix = "") {
 }
 
 if (
-  manifest.schemaVersion !== 1 ||
+  manifest.schemaVersion !== 2 ||
   manifest.engine !== "gnubg" ||
   manifest.gnubgVersion !== "1.08.003" ||
   manifest.abiVersion !== "1.0" ||
   !/^sha256-[0-9a-f]{64}$/u.test(manifest.contentVersion) ||
   manifest.publicBase !== `/engines/${manifest.contentVersion}/` ||
+  !/^\/sources\/sha256-[0-9a-f]{64}\/$/u.test(
+    manifest.sourceBundle?.publicBase,
+  ) ||
+  manifest.sourceBundle?.url !== manifest.sourceUrl ||
+  manifest.sourceBundle?.path !==
+    `${manifest.sourceBundle.publicBase.slice(1)}backgammon-engine-capsule-source.tar.gz` ||
+  manifest.sourceBundle?.sha256 !==
+    manifest.sourceBundle.publicBase.slice(
+      "/sources/sha256-".length,
+      -1,
+    ) ||
+  !Number.isSafeInteger(manifest.sourceBundle?.size) ||
+  manifest.sourceBundle.size <= 0 ||
+  !/^[0-9a-f]{64}$/u.test(manifest.sourceBundle?.manifestSha256) ||
+  !/^[0-9a-f]{40}$/u.test(manifest.sourceBundle?.repositoryCommit) ||
+  typeof manifest.sourceBundle?.workingTreeClean !== "boolean" ||
+  !/^[0-9a-f]{64}$/u.test(manifest.sourceBundle?.sourceTreeSha256) ||
+  !Number.isSafeInteger(manifest.sourceBundle?.fileCount) ||
+  manifest.sourceBundle.fileCount <= 0 ||
   !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(manifest.buildId) ||
   !Array.isArray(manifest.files)
 ) {
@@ -84,6 +104,17 @@ for (const variableName of ["sourceUrl", "licenseUrl"]) {
     throw new Error(`Manifest ${variableName} is not an approved public URL`);
   }
 }
+const sourceUrl = new URL(manifest.sourceUrl);
+if (
+  sourceUrl.origin !== manifest.capsuleOrigin ||
+  sourceUrl.pathname !== `/${manifest.sourceBundle.path}` ||
+  sourceUrl.search ||
+  sourceUrl.hash
+) {
+  throw new Error(
+    "Manifest source URL does not identify the exact same-origin archive",
+  );
+}
 
 const manifestPaths = new Set();
 for (const record of manifest.files) {
@@ -101,6 +132,7 @@ for (const record of manifest.files) {
 }
 
 const enginePrefix = manifest.publicBase.slice(1);
+const sourceArchivePath = manifest.sourceBundle.path;
 const requiredEngineFiles = [
   "gnubg-wasm.mjs",
   "gnubg-wasm.wasm",
@@ -113,6 +145,19 @@ for (const fileName of requiredEngineFiles) {
   if (!manifestPaths.has(`${enginePrefix}${fileName}`)) {
     throw new Error(`Required engine artifact is missing from manifest: ${fileName}`);
   }
+}
+const sourceArchiveRecord = manifest.files.find(
+  ({ role }) => role === "corresponding-source-archive",
+);
+if (
+  !sourceArchiveRecord ||
+  sourceArchiveRecord.path !== sourceArchivePath ||
+  sourceArchiveRecord.size !== manifest.sourceBundle.size ||
+  sourceArchiveRecord.sha256 !== manifest.sourceBundle.sha256
+) {
+  throw new Error(
+    "Required corresponding-source archive is missing from manifest",
+  );
 }
 for (const fileName of [
   "gnubg-engine.worker.js",
@@ -207,6 +252,26 @@ if (
 ) {
   throw new Error("Distributed GNUbg build information is invalid");
 }
+if (
+  buildInfo.correspondingSource?.archiveSize !==
+    manifest.sourceBundle.size ||
+  buildInfo.correspondingSource?.archiveSha256 !==
+    manifest.sourceBundle.sha256 ||
+  buildInfo.correspondingSource?.manifestSha256 !==
+    manifest.sourceBundle.manifestSha256 ||
+  buildInfo.correspondingSource?.repositoryCommit !==
+    manifest.sourceBundle.repositoryCommit ||
+  buildInfo.correspondingSource?.workingTreeClean !==
+    manifest.sourceBundle.workingTreeClean ||
+  buildInfo.correspondingSource?.sourceTreeSha256 !==
+    manifest.sourceBundle.sourceTreeSha256 ||
+  buildInfo.correspondingSource?.fileCount !==
+    manifest.sourceBundle.fileCount
+) {
+  throw new Error(
+    "Distributed GNUbg build is not bound to its corresponding source",
+  );
+}
 for (const fileName of payloadNames) {
   const bytes = payloadBytes.get(fileName);
   const record = buildInfo.artifacts.find(
@@ -265,7 +330,11 @@ for (const file of files) {
   if (isWasm !== (file === wasmPath)) {
     throw new Error(`Unexpected or invalid WebAssembly file: ${file}`);
   }
-  if (archiveSignatures.some((signature) => bytes.subarray(0, signature.length).equals(signature))) {
+  if (
+    file !== sourceArchivePath &&
+    archiveSignatures.some((signature) =>
+      bytes.subarray(0, signature.length).equals(signature))
+  ) {
     throw new Error(`Archive or native binary is forbidden in browser dist: ${file}`);
   }
   for (const privatePath of [
@@ -295,6 +364,15 @@ for (const file of files) {
     }
   }
 }
+
+verifySourceBundle({
+  archiveFile: path.join(distRoot, sourceArchivePath),
+  infoFile: path.join(
+    repositoryRoot,
+    "build/source/source-bundle-info.json",
+  ),
+  requireClean: manifest.mode === "production",
+});
 
 const moduleSource = payloadBytes.get("gnubg-wasm.mjs").toString("utf8");
 if (!/Copyright [0-9]+ The Emscripten Authors/u.test(moduleSource)) {
@@ -334,6 +412,11 @@ if (
   !/Emscripten 6\.0\.5/u.test(thirdParty) ||
   !/musl/u.test(thirdParty) ||
   !sourceNotice.includes(manifest.sourceUrl) ||
+  !sourceNotice.includes(manifest.sourceBundle.sha256) ||
+  !sourceNotice.includes(manifest.sourceBundle.repositoryCommit) ||
+  !sourceNotice.includes(manifest.sourceBundle.sourceTreeSha256) ||
+  !sourceNotice.includes(manifest.sourceBundle.manifestSha256) ||
+  !sourceNotice.includes(String(manifest.sourceBundle.fileCount)) ||
   !sourceNotice.includes(manifest.buildId) ||
   !sourceNotice.includes(manifest.contentVersion)
 ) {
@@ -343,7 +426,14 @@ if (
 const headers = await readFile(path.join(distRoot, "_headers"), "utf8");
 if (
   !headers.includes(manifest.publicBase + "*") ||
+  !headers.includes(manifest.sourceBundle.publicBase + "*") ||
+  !headers.includes(`/${manifest.sourceBundle.path}`) ||
   !headers.includes("Cache-Control: public, max-age=31536000, immutable") ||
+  !headers.includes("Content-Type: application/gzip") ||
+  !headers.includes("Content-Encoding: identity") ||
+  !headers.includes(
+    "Content-Disposition: attachment; filename=backgammon-engine-capsule-source.tar.gz",
+  ) ||
   !headers.includes("Access-Control-Allow-Origin: *") ||
   !headers.includes("Cross-Origin-Resource-Policy: cross-origin") ||
   !headers.includes("'wasm-unsafe-eval'") ||

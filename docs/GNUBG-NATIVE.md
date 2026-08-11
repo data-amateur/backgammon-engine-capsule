@@ -1,13 +1,16 @@
 # GNUbg native harness
 
-This repository now has a deliberately narrow native checkpoint between the
-authenticated GNUbg source and the future WebAssembly Worker. It proves board
-translation, independent legal-turn validation, candidate scoring, typed cube
-offer/response decisions, evaluator lifecycle, and source minimization without
-exposing GNUbg's command parser.
+This repository has a deliberately narrow native harness beneath the active
+WebAssembly engine. It proves board translation, independent legal-turn
+validation, candidate scoring, typed cube offer/response decisions, evaluator
+lifecycle, and source minimization without exposing GNUbg's command parser.
+The browser build compiles the same adapter and arena ABI into the real
+capsule-owned GNUbg Worker.
 
-The default browser capsule still runs the GPL-free mock. Nothing in this
-native build is copied into `dist/` or served at port 4174.
+Native executables and object files are ignored build artifacts and are not
+copied into `dist/` or served at port 4174. Their complete buildable source
+is included in the generated corresponding-source archive for every browser
+build.
 
 ## Build and test
 
@@ -90,7 +93,7 @@ Python, import/export, or networking features.
 ## Typed adapter boundary
 
 `native/gnubg/gnubg_adapter.h` contains plain C structs and enums rather than
-GNUbg internals. The current checkpoint supports:
+GNUbg internals. The adapter supports:
 
 - one process-scoped engine initialization;
 - absolute BEP-style board, match, rule, cube, and dice input;
@@ -213,11 +216,11 @@ The executable currently checks:
 - a separate real public-wrapper process covering asset-path init, duplicate
   init, checker selection, reset, idempotent dispose, and terminal calls.
 
-## Known limitations before browser integration
+## Current limitations
 
-- The harness loads the 1,097,796-byte text network. A later pinned conversion
-  step should generate and authenticate GNUbg's approximately 408 KB binary
-  `gnubg.wd`.
+- The harness and browser data package load the 1,097,796-byte text network. A
+  future pinned conversion could generate and authenticate GNUbg's
+  approximately 408 KB binary `gnubg.wd`.
 - Optional exact bearoff database files are not bundled. The adapter initializes
   GNUbg's built-in one-sided heuristic context. A checked-in GPL-side patch
   makes the race backgammon correction fall back to that heuristic when the
@@ -226,21 +229,21 @@ The executable currently checks:
 - Match evaluation is rejected above length 64 or cube value 64 because of
   GNUbg's fixed match-equity table dimensions.
 - Raccoon policy is rejected because GNUbg's `cubeinfo` cannot represent it.
-- The native harness continues to use system GLib. The linked wasm checkpoint
-  excludes GLib and GNUbg's generic XML/list path, using the capsule's narrow
-  wasm-only compatibility runtime instead. The remaining work is to connect
-  that verified evaluator to the browser compute Worker.
+- The native harness continues to use system GLib. The active linked
+  WebAssembly build excludes GLib and GNUbg's generic XML/list path, using the
+  capsule's narrow wasm-only compatibility runtime instead.
 - Upstream's native defaults still allocate roughly 33 MB for evaluation
   caches and another 4 MB for thread-local move storage. The wasm build instead
   sets 65,536 evaluator-cache entries and 8,192 pruning-cache entries before
   initialization, with 32 MiB initial and 128 MiB maximum memory. Its Node test
   fills memory to the limit and requires cache-allocation failure to return
   cleanly rather than trap.
-- `maximum` evaluates every supplied candidate at two plies. The native API
-  allows the BEP ceiling of 4,096 candidates and currently has no time, node,
-  or cancellation budget, so that combination is not browser-safe yet. The
-  Worker bridge must impose measured limits and use Worker termination for
-  hard cancellation before exposing this preset.
+- The native API itself permits up to 4,096 candidates at two-ply `maximum`
+  and has no preemptive cancellation. The browser bridge uses two-ply checker
+  evaluation only for at most eight candidates with at least 500 ms and depth
+  two available. Tighter requests use expert zero-ply and report
+  `completed: false`. A hard `timeMs` expiry terminates the Worker,
+  `maxNodes` is rejected, and `candidateLimit` affects rankings only.
 - The public patch adds the capsule-only `BGC_EvalInitialise()` status entry
   point while preserving upstream `EvalInitialise(void)`, and cleans up partial
   state on failure. Native tests cover wrong-version, mid-first-network
@@ -252,4 +255,8 @@ The executable currently checks:
 
 The adapter and executable link GNUbg and are licensed
 `GPL-3.0-or-later`. They, all future patches, build scripts, runtime assets,
-WASM, and exact corresponding source remain in this public capsule project.
+WebAssembly, and exact corresponding source remain in this public capsule
+project. The deterministic source archive is published separately at
+`/sources/sha256-<archive-hash>/backgammon-engine-capsule-source.tar.gz`,
+bound to the engine build, and never fetched by the runtime. Production
+bundles require a clean Git working tree.

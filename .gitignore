@@ -19,6 +19,7 @@ third_party/gnubg/work/
 build/gnubg/
 build/browser-public/
 build/browser-assets-manifest.json
+build/source/
 
 # Emscripten must remain an external development dependency
 .emsdk/
@@ -48,4 +49,3 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
-

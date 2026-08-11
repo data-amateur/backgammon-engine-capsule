@@ -24,6 +24,13 @@ interface BrowserAssetManifest {
   readonly buildId: string;
   readonly sourceUrl: string;
   readonly licenseUrl: string;
+  readonly sourceBundle: {
+    readonly publicBase: string;
+    readonly path: string;
+    readonly url: string;
+    readonly size: number;
+    readonly sha256: string;
+  };
   readonly files: readonly {
     readonly path: string;
   }[];
@@ -42,13 +49,23 @@ function readBrowserManifest(mode: string): BrowserAssetManifest {
     );
   }
   if (
-    manifest.schemaVersion !== 1 ||
+    manifest.schemaVersion !== 2 ||
     manifest.mode !== mode ||
     manifest.engine !== "gnubg" ||
     !/^\/engines\/sha256-[0-9a-f]{64}\/$/u.test(manifest.publicBase) ||
     !manifest.buildId ||
     !manifest.sourceUrl ||
     !manifest.licenseUrl ||
+    !/^\/sources\/sha256-[0-9a-f]{64}\/$/u.test(
+      manifest.sourceBundle?.publicBase,
+    ) ||
+    manifest.sourceBundle.url !== manifest.sourceUrl ||
+    !manifest.sourceBundle.path.startsWith(
+      manifest.sourceBundle.publicBase.slice(1),
+    ) ||
+    !Number.isSafeInteger(manifest.sourceBundle.size) ||
+    manifest.sourceBundle.size <= 0 ||
+    !/^[0-9a-f]{64}$/u.test(manifest.sourceBundle.sha256) ||
     !Array.isArray(manifest.files) ||
     !manifest.files.every(
       (file) =>
@@ -121,7 +138,8 @@ function createSecurityHeaders(
 
 function emitStaticHostHeaders(
   headers: Readonly<Record<string, string>>,
-  engineAssetPattern: string,
+  immutableAssetPatterns: readonly string[],
+  sourceArchivePath: string,
 ): Plugin {
   return {
     name: "emit-capsule-security-headers",
@@ -141,8 +159,17 @@ function emitStaticHostHeaders(
           formattedHeaders,
           "  Cache-Control: public, max-age=31536000, immutable",
           "",
-          engineAssetPattern,
+          ...immutableAssetPatterns.flatMap((assetPattern) => [
+            assetPattern,
+            formattedHeaders,
+            "  Cache-Control: public, max-age=31536000, immutable",
+            "",
+          ]),
+          sourceArchivePath,
           formattedHeaders,
+          "  Content-Type: application/gzip",
+          "  Content-Encoding: identity",
+          "  Content-Disposition: attachment; filename=backgammon-engine-capsule-source.tar.gz",
           "  Cache-Control: public, max-age=31536000, immutable",
           "",
         ].join("\n"),
@@ -153,6 +180,7 @@ function emitStaticHostHeaders(
 
 function applyPreviewCachePolicy(
   immutableAssetPaths: ReadonlySet<string>,
+  sourceArchivePath: string,
 ): Plugin {
   return {
     name: "apply-capsule-preview-cache-policy",
@@ -175,6 +203,14 @@ function applyPreviewCachePolicy(
         }
         if (immutableAssetPaths.has(pathname)) {
           response.setHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL);
+        }
+        if (pathname === sourceArchivePath) {
+          response.setHeader("Content-Type", "application/gzip");
+          response.setHeader("Content-Encoding", "identity");
+          response.setHeader(
+            "Content-Disposition",
+            "attachment; filename=backgammon-engine-capsule-source.tar.gz",
+          );
         }
         next();
       });
@@ -216,23 +252,23 @@ export default defineConfig(({ mode }) => {
   if (
     production &&
     (!env.VITE_BUILD_ID?.trim() ||
-      !env.VITE_SOURCE_URL?.trim() ||
       !env.VITE_LICENSE_URL?.trim())
   ) {
     throw new Error(
-      "Production builds require VITE_BUILD_ID, VITE_SOURCE_URL, and VITE_LICENSE_URL",
+      "Production builds require VITE_BUILD_ID and VITE_LICENSE_URL",
     );
   }
 
   const headers = createSecurityHeaders(parentOrigins, capsuleOrigin);
-  const immutableEngineAssetPaths = new Set(
+  const immutableContentPaths = new Set(
     manifest.files
       .map(({ path: publicPath }) => `/${publicPath}`)
       .filter((publicPath) => publicPath.startsWith(manifest.publicBase)),
   );
-  if (immutableEngineAssetPaths.size === 0) {
+  if (immutableContentPaths.size === 0) {
     throw new Error("Generated GNUbg browser manifest has no engine assets");
   }
+  immutableContentPaths.add(`/${manifest.sourceBundle.path}`);
   return {
     publicDir: generatedPublicRoot,
     define: {
@@ -241,8 +277,14 @@ export default defineConfig(({ mode }) => {
       ),
     },
     plugins: [
-      emitStaticHostHeaders(headers, `${manifest.publicBase}*`),
-      applyPreviewCachePolicy(immutableEngineAssetPaths),
+      emitStaticHostHeaders(headers, [
+        `${manifest.publicBase}*`,
+        `${manifest.sourceBundle.publicBase}*`,
+      ], `/${manifest.sourceBundle.path}`),
+      applyPreviewCachePolicy(
+        immutableContentPaths,
+        `/${manifest.sourceBundle.path}`,
+      ),
     ],
     server: {
       host: "127.0.0.1",
