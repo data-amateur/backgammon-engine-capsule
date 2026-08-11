@@ -45,6 +45,10 @@ export class CapsuleController {
   private runtime: WorkerRuntime | null = null;
   private runtimePromise: Promise<WorkerRuntime> | null = null;
   private readonly activeRequests = new Map<string, BepRequestMessage>();
+  private readonly requestTimeouts = new Map<
+    string,
+    ReturnType<typeof globalThis.setTimeout>
+  >();
 
   public constructor(options: CapsuleControllerOptions) {
     this.allowedParentOrigins = options.allowedParentOrigins;
@@ -72,6 +76,7 @@ export class CapsuleController {
     this.runtime?.dispose();
     this.runtime = null;
     this.runtimePromise = null;
+    this.clearAllRequestTimeouts();
     this.activeRequests.clear();
     this.port?.close();
     this.port = null;
@@ -142,8 +147,10 @@ export class CapsuleController {
       if (!this.activeRequests.has(request.requestId) || this.disposed) {
         return;
       }
+      this.armRequestTimeout(runtime, request);
       runtime.request(request);
     } catch (error) {
+      this.clearRequestTimeout(request.requestId);
       if (!this.activeRequests.delete(request.requestId)) {
         return;
       }
@@ -151,12 +158,9 @@ export class CapsuleController {
         error instanceof WorkerRuntimeStartupError
           ? error.bepError
           : {
-              code: "asset-load-failed" as const,
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "Failed to initialize engine",
-              retryable: true,
+              code: "internal-error" as const,
+              message: "Engine runtime failed unexpectedly during startup",
+              retryable: false,
             };
       this.postError(request.requestId, request.method, startupError);
       this.onStatusChange?.("failed", startupError.message);
@@ -175,6 +179,7 @@ export class CapsuleController {
         }
       },
       onError: (requestId, method, error) => {
+        this.clearRequestTimeout(requestId);
         if (
           this.runtime === runtime &&
           this.activeRequests.delete(requestId)
@@ -190,8 +195,19 @@ export class CapsuleController {
     this.runtimePromise = runtime
       .start()
       .then(() => {
-        if (this.disposed || this.runtime !== runtime) {
-          throw new Error("Worker runtime was superseded during startup");
+        if (this.disposed) {
+          throw new WorkerRuntimeStartupError({
+            code: "disposed",
+            message: "Capsule controller was disposed during startup",
+            retryable: false,
+          });
+        }
+        if (this.runtime !== runtime) {
+          throw new WorkerRuntimeStartupError({
+            code: "cancelled",
+            message: "Worker runtime was superseded during startup",
+            retryable: true,
+          });
         }
         this.onStatusChange?.("ready");
         return runtime;
@@ -208,6 +224,7 @@ export class CapsuleController {
   }
 
   private cancelRequest(requestId: string): void {
+    this.clearRequestTimeout(requestId);
     if (!this.activeRequests.delete(requestId)) {
       return;
     }
@@ -223,6 +240,7 @@ export class CapsuleController {
     const interruptedMessage =
       "Engine runtime restarted because another request was cancelled";
     for (const [activeId, request] of this.activeRequests) {
+      this.clearRequestTimeout(activeId);
       this.postError(activeId, request.method, {
         code: "engine-crash",
         message: interruptedMessage,
@@ -244,6 +262,7 @@ export class CapsuleController {
     if (!activeRequest || activeRequest.method !== method || !this.sessionNonce) {
       return;
     }
+    this.clearRequestTimeout(requestId);
 
     const candidate: unknown = {
       protocol: BEP_PROTOCOL,
@@ -329,6 +348,7 @@ export class CapsuleController {
     this.runtimePromise = null;
     runtime.dispose();
     for (const [requestId, request] of this.activeRequests) {
+      this.clearRequestTimeout(requestId);
       this.postError(requestId, request.method, {
         code: "engine-crash",
         message: error.message,
@@ -337,6 +357,66 @@ export class CapsuleController {
     }
     this.activeRequests.clear();
     this.onStatusChange?.("failed", error.message);
+  }
+
+  private armRequestTimeout(
+    runtime: WorkerRuntime,
+    request: BepRequestMessage,
+  ): void {
+    if (request.method === "hello") {
+      return;
+    }
+    const timeMs = request.payload.settings.limits.timeMs;
+    if (timeMs === undefined) {
+      return;
+    }
+    this.clearRequestTimeout(request.requestId);
+    const timeoutId = globalThis.setTimeout(() => {
+      if (
+        this.runtime !== runtime ||
+        !this.activeRequests.delete(request.requestId)
+      ) {
+        return;
+      }
+      this.clearRequestTimeout(request.requestId);
+      const message = `Engine exceeded its ${timeMs} ms request budget`;
+      this.postError(request.requestId, request.method, {
+        code: "timeout",
+        message,
+        retryable: true,
+      });
+
+      this.runtime = null;
+      this.runtimePromise = null;
+      runtime.cancel(request.requestId);
+      for (const [activeId, activeRequest] of this.activeRequests) {
+        this.clearRequestTimeout(activeId);
+        this.postError(activeId, activeRequest.method, {
+          code: "engine-crash",
+          message: "Engine runtime restarted after another request timed out",
+          retryable: true,
+        });
+      }
+      this.activeRequests.clear();
+      this.onStatusChange?.("failed", message);
+    }, timeMs);
+    this.requestTimeouts.set(request.requestId, timeoutId);
+  }
+
+  private clearRequestTimeout(requestId: string): void {
+    const timeoutId = this.requestTimeouts.get(requestId);
+    if (timeoutId === undefined) {
+      return;
+    }
+    globalThis.clearTimeout(timeoutId);
+    this.requestTimeouts.delete(requestId);
+  }
+
+  private clearAllRequestTimeouts(): void {
+    for (const timeoutId of this.requestTimeouts.values()) {
+      globalThis.clearTimeout(timeoutId);
+    }
+    this.requestTimeouts.clear();
   }
 
   private postError(

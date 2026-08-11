@@ -193,6 +193,7 @@ afterEach(() => {
     connection.hostPort.close();
   }
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
@@ -216,6 +217,28 @@ describe("CapsuleController", () => {
           kind: "bep.error",
           requestId: request.requestId,
           error: startupError,
+        }),
+      ),
+    );
+  });
+
+  it("classifies an unstructured startup exception as an internal error", async () => {
+    runtimeHarness.startFactory = () =>
+      Promise.reject(new Error("unexpected controller startup failure"));
+    const { hostPort, received } = connectController();
+    const request = createChooseMessage();
+    hostPort.postMessage(request);
+
+    await vi.waitFor(() =>
+      expect(received).toContainEqual(
+        expect.objectContaining({
+          kind: "bep.error",
+          requestId: request.requestId,
+          error: {
+            code: "internal-error",
+            message: "Engine runtime failed unexpectedly during startup",
+            retryable: false,
+          },
         }),
       ),
     );
@@ -320,6 +343,54 @@ describe("CapsuleController", () => {
           Reflect.get(message, "requestId") === cancelledRequest.requestId,
       ),
     ).toBe(false);
+  });
+
+  it("terminates an over-budget runtime and recreates it for the next request", async () => {
+    let budgetDeadline: (() => void) | undefined;
+    const nativeSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((
+      (callback: (...args: unknown[]) => void,
+      delay?: number,
+      ...args: unknown[]) => {
+        if (delay === 500) {
+          budgetDeadline = () => callback(...args);
+          return 987 as unknown as ReturnType<typeof globalThis.setTimeout>;
+        }
+        return nativeSetTimeout(callback, delay, ...args);
+      }
+    ) as typeof globalThis.setTimeout);
+
+    const { hostPort, received } = connectController();
+    const timedRequest = createChooseMessage("request:timed");
+    hostPort.postMessage(timedRequest);
+    const firstRuntime = await getRuntime();
+    await vi.waitFor(() =>
+      expect(firstRuntime.request).toHaveBeenCalledWith(timedRequest),
+    );
+    expect(budgetDeadline).toBeDefined();
+
+    budgetDeadline?.();
+    await vi.waitFor(() =>
+      expect(received).toContainEqual(
+        expect.objectContaining({
+          kind: "bep.error",
+          requestId: timedRequest.requestId,
+          error: {
+            code: "timeout",
+            message: "Engine exceeded its 500 ms request budget",
+            retryable: true,
+          },
+        }),
+      ),
+    );
+    expect(firstRuntime.cancel).toHaveBeenCalledWith(timedRequest.requestId);
+
+    const nextRequest = createHelloMessage("request:after-timeout");
+    hostPort.postMessage(nextRequest);
+    const secondRuntime = await getRuntime(1);
+    await vi.waitFor(() =>
+      expect(secondRuntime.request).toHaveBeenCalledWith(nextRequest),
+    );
   });
 
   it("fails other active requests when cancellation replaces their runtime", async () => {

@@ -279,7 +279,10 @@ const isMatch = (value: unknown): boolean => {
   if (value.mode === "money") {
     return value.length === null && value.crawford === "none";
   }
-  if (!isPositiveInteger(value.length)) {
+  if (
+    !isPositiveInteger(value.length) ||
+    value.length > BEP_RUNTIME_LIMITS.maxMatchLength
+  ) {
     return false;
   }
   if (value.crawford === "none") {
@@ -291,6 +294,13 @@ const isMatch = (value: unknown): boolean => {
       value.score.black === value.length - 1)
   );
 };
+
+const isMatchCubeWithinRange = (match: unknown, cube: unknown): boolean =>
+  isRecord(match) &&
+  isRecord(cube) &&
+  (match.mode !== "match" ||
+    (typeof cube.value === "number" &&
+      cube.value <= BEP_RUNTIME_LIMITS.maxMatchCubeValue));
 
 const isRules = (value: unknown): boolean =>
   isRecord(value) &&
@@ -341,6 +351,7 @@ export const isBepPosition = (value: unknown): value is BepPosition => {
     isDice(value.dice) &&
     isCube(value.cube) &&
     isMatch(value.match) &&
+    isMatchCubeWithinRange(value.match, value.cube) &&
     isRules(value.rules)
   ) {
     return hasConsistentPositionPhase(value as unknown as BepPosition);

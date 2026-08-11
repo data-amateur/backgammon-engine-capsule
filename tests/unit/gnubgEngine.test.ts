@@ -460,6 +460,7 @@ describe("GNUbg WebAssembly engine", () => {
 
     const result = engine.chooseTurn(request, performance.now());
     expect(result.chosenTurnId).toBe("turn:off");
+    expect(result.stats).toMatchObject({ depth: 2, completed: true });
     expect(result.rankedTurns?.map(({ turnId }) => turnId)).toEqual([
       "turn:off",
       "turn:bar",
@@ -501,6 +502,71 @@ describe("GNUbg WebAssembly engine", () => {
     expect(view.getInt32(second + 12, true)).toBe(18);
     expect(view.getUint32(second + 16, true)).toBe(2);
     expect(view.getInt32(second + 20, true)).toBe(0);
+    engine.dispose();
+  });
+
+  it("uses a measured zero-ply partial result for an oversized maximum request", async () => {
+    const module = new FakeGnubgModule();
+    const engine = await createEngine(module);
+    const base = createChooseRequest();
+    const template = base.legalTurns[0] as BepChooseTurnRequest["legalTurns"][number];
+    const result = engine.chooseTurn({
+      ...base,
+      legalTurns: Array.from({ length: 9 }, (_, index) => ({
+        ...template,
+        id: `turn:bounded-${index}`,
+      })),
+      settings: { ...base.settings, strength: "maximum" },
+    });
+
+    expect(snapshotView(module.chooseSnapshot).getUint32(144, true)).toBe(3);
+    expect(result.stats).toMatchObject({ depth: 0, completed: false });
+    engine.dispose();
+  });
+
+  it.each([
+    ["a tighter time budget", { timeMs: 499 }],
+    ["a shallower depth", { timeMs: 500, maxDepth: 1 }],
+  ])("clamps maximum checker play for %s", async (_label, limits) => {
+    const module = new FakeGnubgModule();
+    const engine = await createEngine(module);
+    const base = createChooseRequest();
+    const result = engine.chooseTurn({
+      ...base,
+      settings: {
+        ...base.settings,
+        strength: "maximum",
+        limits,
+      },
+    });
+
+    expect(snapshotView(module.chooseSnapshot).getUint32(144, true)).toBe(3);
+    expect(result.stats).toMatchObject({ depth: 0, completed: false });
+    engine.dispose();
+  });
+
+  it("rejects unenforceable node and memory ceilings before native work", async () => {
+    const module = new FakeGnubgModule();
+    const engine = await createEngine(module);
+    const base = createChooseRequest();
+    for (const limits of [{ maxNodes: 1_000 }, { memoryMb: 127 }]) {
+      let caught: unknown;
+      try {
+        engine.chooseTurn({
+          ...base,
+          settings: { ...base.settings, limits },
+        });
+      } catch (error) {
+        caught = error;
+      }
+      expectEngineError(caught, "unsupported", false);
+    }
+    expect(module.chooseCalls).toHaveLength(0);
+
+    expect(() => engine.chooseTurn({
+      ...base,
+      settings: { ...base.settings, limits: { memoryMb: 128 } },
+    })).not.toThrow();
     engine.dispose();
   });
 

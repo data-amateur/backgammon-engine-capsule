@@ -11,6 +11,7 @@ import {
   type BepCubeDecisionRequest,
   type BepCubeDecisionResult,
   type BepEngineError,
+  type BepEngineSettings,
   type BepEngineMetadata,
   type BepHelloRequest,
   type BepHelloResult,
@@ -103,6 +104,10 @@ const INIT_WEIGHTS_OFFSET = INIT_ERROR_OFFSET + ERROR_SIZE;
 const WEIGHTS_PATH = "/gnubg/gnubg.weights";
 const MATCH_EQUITY_PATH = "/gnubg/met/Kazaross-XG2.xml";
 const STATUS_OK = 0;
+const GNUBG_WASM_MAX_MEMORY_MB = 128;
+const MAXIMUM_CHECKER_CANDIDATES = 8;
+const MAXIMUM_MINIMUM_TIME_MS = 500;
+const MAXIMUM_DEPTH = 2;
 
 const EXPECTED_DESCRIPTOR_FIELDS: readonly (readonly [number, number])[] = [
   [0, ABI_VERSION],
@@ -403,6 +408,62 @@ function mappedStatusError(
   }
 }
 
+interface SearchPolicy {
+  readonly strength: BepStrengthPreset;
+  readonly depth: number;
+  readonly completed: boolean;
+}
+
+function resolveSearchPolicy(
+  settings: BepEngineSettings,
+  checkerCandidateCount?: number,
+): SearchPolicy {
+  const { limits } = settings;
+  if (limits.maxNodes !== undefined) {
+    throw engineError(
+      "unsupported",
+      "GNUbg cannot enforce a maxNodes search limit",
+      false,
+      false,
+    );
+  }
+  if (
+    limits.memoryMb !== undefined &&
+    limits.memoryMb < GNUBG_WASM_MAX_MEMORY_MB
+  ) {
+    throw engineError(
+      "unsupported",
+      `GNUbg requires a memoryMb limit of at least ${GNUBG_WASM_MAX_MEMORY_MB}`,
+      false,
+      false,
+    );
+  }
+
+  const maximumRequested = settings.strength === "maximum";
+  const depthAllowsMaximum =
+    limits.maxDepth === undefined || limits.maxDepth >= MAXIMUM_DEPTH;
+  const timeAllowsMaximum =
+    limits.timeMs === undefined ||
+    limits.timeMs >= MAXIMUM_MINIMUM_TIME_MS;
+  const candidatesAllowMaximum =
+    checkerCandidateCount === undefined ||
+    checkerCandidateCount <= MAXIMUM_CHECKER_CANDIDATES;
+  const useMaximum =
+    maximumRequested &&
+    depthAllowsMaximum &&
+    timeAllowsMaximum &&
+    candidatesAllowMaximum;
+
+  if (maximumRequested && !useMaximum) {
+    return { strength: "expert", depth: 0, completed: false };
+  }
+  return {
+    strength: settings.strength,
+    depth: useMaximum ? MAXIMUM_DEPTH : 0,
+    completed: true,
+  };
+}
+
 function writePosition(view: DataView, offset: number, position: BepPosition): void {
   if (position.rules.variation !== "standard") {
     throw engineError(
@@ -647,6 +708,7 @@ export class GnubgEngine {
     if (count < 1 || count > BEP_RUNTIME_LIMITS.maxLegalTurns) {
       throw engineError("invalid-request", "Checker candidate count is outside the BEP limit", false, false);
     }
+    const search = resolveSearchPolicy(request.settings, count);
     verifyResultingBoards(request);
     const candidatesOffset = CHOOSE_REQUEST_SIZE;
     const scoresOffset = candidatesOffset + count * CANDIDATE_SIZE;
@@ -666,7 +728,7 @@ export class GnubgEngine {
     before.setUint32(132, count, true);
     before.setUint32(136, scoresOffset, true);
     before.setUint32(140, count, true);
-    before.setUint32(144, STRENGTH[request.settings.strength], true);
+    before.setUint32(144, STRENGTH[search.strength], true);
     request.legalTurns.forEach((turn, candidateIndex) => {
       const candidateOffset = candidatesOffset + candidateIndex * CANDIDATE_SIZE;
       before.setUint32(candidateOffset, turn.steps.length, true);
@@ -737,7 +799,11 @@ export class GnubgEngine {
         rank: index + 1,
         score: entry.score,
       })),
-      stats: { elapsedMs: elapsedSince(startedAt), completed: true },
+      stats: {
+        elapsedMs: elapsedSince(startedAt),
+        depth: search.depth,
+        completed: search.completed,
+      },
     };
   }
 
@@ -750,6 +816,7 @@ export class GnubgEngine {
     if (count < 1 || count > 6) {
       throw engineError("invalid-request", "Cube action count is outside the ABI limit", false, false);
     }
+    const search = resolveSearchPolicy(request.settings);
     const resultOffset = CUBE_REQUEST_SIZE;
     const errorOffset = resultOffset + CUBE_RESULT_SIZE;
     const usedSize = errorOffset + ERROR_SIZE;
@@ -764,7 +831,7 @@ export class GnubgEngine {
     request.legalDecisions.forEach((decision, index) => {
       before.setUint32(140 + index * 4, CUBE_ACTION[decision], true);
     });
-    before.setUint32(164, STRENGTH[request.settings.strength], true);
+    before.setUint32(164, STRENGTH[search.strength], true);
 
     let status: number;
     try {
@@ -809,7 +876,11 @@ export class GnubgEngine {
     return {
       positionRevision: request.position.revision,
       decision: request.legalDecisions[selectedIndex] as BepCubeDecision,
-      stats: { elapsedMs: elapsedSince(startedAt), completed: true },
+      stats: {
+        elapsedMs: elapsedSince(startedAt),
+        depth: search.depth,
+        completed: search.completed,
+      },
     };
   }
 

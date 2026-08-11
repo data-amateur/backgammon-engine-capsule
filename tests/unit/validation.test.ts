@@ -155,6 +155,42 @@ describe("position invariant validation", () => {
       }),
     ).toBe(true);
   });
+
+  it("bounds match length and match cube values to GNUbg's BEP v1 range", () => {
+    const match = createPosition({ phase: "before-roll", dice: [] });
+    expect(
+      isBepPosition({
+        ...match,
+        match: { ...match.match, length: 64 },
+        cube: { ...match.cube, value: 64 },
+      }),
+    ).toBe(true);
+    expect(
+      isBepPosition({
+        ...match,
+        match: { ...match.match, length: 65 },
+      }),
+    ).toBe(false);
+    expect(
+      isBepPosition({
+        ...match,
+        cube: { ...match.cube, value: 128 },
+      }),
+    ).toBe(false);
+
+    expect(
+      isBepPosition({
+        ...match,
+        cube: { ...match.cube, value: 4_096 },
+        match: {
+          mode: "money",
+          length: null,
+          score: { white: 0, black: 0 },
+          crawford: "none",
+        },
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("bounded structured-clone validation", () => {

@@ -204,10 +204,23 @@ test("recreates a fresh module after a real WASM asset failure", async ({
   page,
 }) => {
   const workerUrls: string[] = [];
+  let blobWorkerGeneration = 0;
   let failedWasmRequests = 0;
-  page.on("worker", (worker) => workerUrls.push(worker.url()));
+  let continuedWasmRequests = 0;
+  page.on("worker", (worker) => {
+    const workerUrl = worker.url();
+    workerUrls.push(workerUrl);
+    if (workerUrl.startsWith("blob:")) {
+      blobWorkerGeneration += 1;
+    }
+  });
   await page.route(/\/gnubg-wasm\.wasm$/u, async (route) => {
-    if (failedWasmRequests === 0) {
+    // Emscripten can retry a failed streaming instantiation with another
+    // fetch (and, depending on the runtime, an XHR fallback). Reject every
+    // WASM request from the first module instance so it cannot recover in
+    // place. The controller must create a fresh Worker before loading is
+    // allowed to succeed.
+    if (blobWorkerGeneration < 2) {
       failedWasmRequests += 1;
       await route.fulfill({
         status: 404,
@@ -216,6 +229,7 @@ test("recreates a fresh module after a real WASM asset failure", async ({
       });
       return;
     }
+    continuedWasmRequests += 1;
     await route.continue();
   });
 
@@ -243,7 +257,8 @@ test("recreates a fresh module after a real WASM asset failure", async ({
     version: "1.08.003",
     license: { spdxId: "GPL-3.0-or-later" },
   });
-  expect(failedWasmRequests).toBe(1);
+  expect(failedWasmRequests).toBeGreaterThan(0);
+  expect(continuedWasmRequests).toBeGreaterThan(0);
   expect(workerUrls.filter((url) => url.startsWith("blob:")).length).toBeGreaterThanOrEqual(2);
   expect(results.sandbox).toBe("allow-scripts");
   expect(results.credentialless).toBe(true);

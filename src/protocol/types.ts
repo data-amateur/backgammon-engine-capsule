@@ -8,6 +8,8 @@ export const BEP_RUNTIME_LIMITS = {
   maxTimeMs: 120_000,
   maxMemoryMb: 4_096,
   maxCubeValue: 4_096,
+  maxMatchLength: 64,
+  maxMatchCubeValue: 64,
   maxStringLength: 64 * 1024,
   maxIdentifierLength: 128,
   minSessionNonceLength: 32,
@@ -126,10 +128,15 @@ export type BepStrengthPreset =
   | "maximum";
 
 export interface BepSearchLimits {
+  /** Hard wall-clock budget enforced by the capsule around the compute Worker. */
   readonly timeMs?: number;
+  /** Maximum requested search depth. Engines may return a shallower partial result. */
   readonly maxDepth?: number;
+  /** Optional hard node ceiling; engines must reject it when they cannot count nodes. */
   readonly maxNodes?: number;
+  /** Maximum memory available to the engine in MiB. */
   readonly memoryMb?: number;
+  /** Maximum number of rankings returned; it does not reduce legal-turn evaluation. */
   readonly candidateLimit?: number;
 }
 

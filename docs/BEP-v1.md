@@ -35,6 +35,15 @@ the controller suppresses any late Worker response. `elapsedMs` accepts finite
 non-negative fractional milliseconds so engines can retain `performance.now()`
 precision.
 
+Search limits are hard upper bounds. The capsule enforces `timeMs` by
+terminating the compute Worker at the deadline. GNUbg rejects `maxNodes`
+because this adapter cannot count native search nodes, and rejects `memoryMb`
+below its 128-MiB WebAssembly ceiling. `candidateLimit` only bounds returned
+rankings; every host-supplied legal turn remains eligible for selection.
+Maximum-strength checker play uses measured two-ply evaluation only for eight
+or fewer candidates with at least 500 ms and depth two available. Larger or
+tighter requests use expert zero-ply evaluation and report `completed: false`.
+
 The board uses absolute points 0–23. White enters on 23 and moves toward 0;
 black enters on 0 and moves toward 23. Adapters must not rotate the BEP board
 for the engine player.
@@ -51,5 +60,7 @@ strength presets, checker play, and cube play. It does not claim evaluation,
 rankings, or rollouts.
 
 Payloads are limited to 2 MiB, depth 16, 100,000 nodes, 4,096 legal turns, and
-four checker steps. Cycles, non-finite numbers, unsafe identifiers, inconsistent
-positions, duplicate IDs, and malformed method payloads are rejected.
+four checker steps. Match play is limited to length 64 and cube value 64;
+money play retains the general cube ceiling of 4,096. Cycles, non-finite
+numbers, unsafe identifiers, inconsistent positions, duplicate IDs, and
+malformed method payloads are rejected.

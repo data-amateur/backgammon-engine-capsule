@@ -26,6 +26,16 @@ class WorkerDouble extends EventTarget {
   public emitMessage(data: unknown): void {
     this.dispatchEvent(new MessageEvent("message", { data }));
   }
+
+  public emitError(cause: unknown): void {
+    const event = new Event("error");
+    Object.defineProperty(event, "error", { value: cause });
+    this.dispatchEvent(event);
+  }
+
+  public emitMessageError(): void {
+    this.dispatchEvent(new Event("messageerror"));
+  }
 }
 
 interface RuntimeHarness {
@@ -82,6 +92,19 @@ async function startRuntime(harness: RuntimeHarness): Promise<void> {
   await startup;
 }
 
+async function captureStartupFailure(
+  startup: Promise<void>,
+): Promise<WorkerRuntimeStartupError> {
+  let startupFailure: unknown;
+  try {
+    await startup;
+  } catch (error) {
+    startupFailure = error;
+  }
+  expect(startupFailure).toBeInstanceOf(WorkerRuntimeStartupError);
+  return startupFailure as WorkerRuntimeStartupError;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -126,6 +149,140 @@ describe("WorkerRuntime startup", () => {
       bepError: engineError,
     });
     expect(harness.worker.terminate).toHaveBeenCalledOnce();
+  });
+
+  it("classifies an unavailable Worker source as an asset failure", async () => {
+    const harness = createRuntimeHarness();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () =>
+        ({ ok: false, status: 404 }) as Response,
+      ),
+    );
+
+    const failure = await captureStartupFailure(harness.runtime.start());
+
+    expect(failure.bepError).toEqual({
+      code: "asset-load-failed",
+      message: "Worker asset returned HTTP 404",
+      retryable: true,
+    });
+    expect(harness.worker.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("classifies a Worker crash during initialization as an engine crash", async () => {
+    const harness = createRuntimeHarness();
+    const startup = harness.runtime.start();
+    await vi.waitFor(() =>
+      expect(harness.worker.postMessage).toHaveBeenCalledOnce(),
+    );
+
+    harness.worker.emitError(new Error("synthetic Worker failure"));
+    const failure = await captureStartupFailure(startup);
+
+    expect(failure.bepError).toEqual({
+      code: "engine-crash",
+      message: "Capsule Worker crashed during initialization",
+      retryable: true,
+    });
+    expect(harness.worker.terminate).toHaveBeenCalledOnce();
+  });
+
+  it("classifies malformed startup protocol as a non-retryable internal error", async () => {
+    const harness = createRuntimeHarness();
+    const startup = harness.runtime.start();
+    await vi.waitFor(() =>
+      expect(harness.worker.postMessage).toHaveBeenCalledOnce(),
+    );
+
+    harness.worker.emitMessage(null);
+    const failure = await captureStartupFailure(startup);
+
+    expect(failure.bepError).toEqual({
+      code: "internal-error",
+      message: "Capsule Worker returned a malformed startup message",
+      retryable: false,
+    });
+  });
+
+  it("classifies an unreadable startup message as a transport error", async () => {
+    const harness = createRuntimeHarness();
+    const startup = harness.runtime.start();
+    await vi.waitFor(() =>
+      expect(harness.worker.postMessage).toHaveBeenCalledOnce(),
+    );
+
+    harness.worker.emitMessageError();
+    const failure = await captureStartupFailure(startup);
+
+    expect(failure.bepError).toEqual({
+      code: "transport-error",
+      message: "Capsule Worker sent an unreadable ready message",
+      retryable: true,
+    });
+  });
+
+  it("marks a persistent Worker security failure as non-retryable transport", async () => {
+    const harness = createRuntimeHarness();
+    const securityError = new Error("Worker creation blocked by policy");
+    securityError.name = "SecurityError";
+    vi.stubGlobal(
+      "Worker",
+      vi.fn(() => {
+        throw securityError;
+      }),
+    );
+
+    const failure = await captureStartupFailure(harness.runtime.start());
+
+    expect(failure.bepError).toEqual({
+      code: "transport-error",
+      message: "Failed to create the capsule Worker transport",
+      retryable: false,
+    });
+  });
+
+  it("classifies an initialization clone failure as an internal error", async () => {
+    const harness = createRuntimeHarness();
+    const cloneError = new Error("synthetic clone failure");
+    cloneError.name = "DataCloneError";
+    harness.worker.postMessage.mockImplementationOnce(() => {
+      throw cloneError;
+    });
+
+    const failure = await captureStartupFailure(harness.runtime.start());
+
+    expect(failure.bepError).toEqual({
+      code: "internal-error",
+      message: "Capsule Worker initialization data could not be cloned",
+      retryable: false,
+    });
+  });
+
+  it("classifies the startup deadline as a retryable timeout", async () => {
+    const harness = createRuntimeHarness();
+    let startupTimeout: (() => void) | undefined;
+    vi.stubGlobal("window", {
+      setTimeout: vi.fn((callback: () => void) => {
+        startupTimeout = callback;
+        return 1;
+      }),
+      clearTimeout: vi.fn(),
+    });
+    const startup = harness.runtime.start();
+    await vi.waitFor(() =>
+      expect(harness.worker.postMessage).toHaveBeenCalledOnce(),
+    );
+    expect(startupTimeout).toBeDefined();
+
+    startupTimeout?.();
+    const failure = await captureStartupFailure(startup);
+
+    expect(failure.bepError).toEqual({
+      code: "timeout",
+      message: "Timed out initializing the capsule Worker",
+      retryable: true,
+    });
   });
 
   it("does not create a Worker when disposed while its source body is loading", async () => {

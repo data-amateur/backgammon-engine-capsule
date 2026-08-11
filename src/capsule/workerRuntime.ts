@@ -19,10 +19,52 @@ import type { GnubgAssetUrls } from "../worker/gnubgEngine";
 const WORKER_READY_TIMEOUT_MS = 8_000;
 
 export class WorkerRuntimeStartupError extends Error {
-  public constructor(public readonly bepError: BepEngineError) {
-    super(bepError.message);
+  public constructor(
+    public readonly bepError: BepEngineError,
+    cause?: unknown,
+  ) {
+    super(bepError.message, cause === undefined ? undefined : { cause });
     this.name = "WorkerRuntimeStartupError";
   }
+}
+
+function startupError(
+  code: BepEngineError["code"],
+  message: string,
+  retryable: boolean,
+  cause?: unknown,
+): WorkerRuntimeStartupError {
+  return new WorkerRuntimeStartupError(
+    { code, message, retryable },
+    cause,
+  );
+}
+
+function errorName(cause: unknown): string {
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    "name" in cause &&
+    typeof cause.name === "string"
+      ? cause.name
+      : ""
+  );
+}
+
+function transportStartupError(
+  message: string,
+  cause?: unknown,
+): WorkerRuntimeStartupError {
+  const causeName = errorName(cause);
+  const retryable =
+    causeName !== "SecurityError" &&
+    causeName !== "NotSupportedError";
+  return startupError(
+    "transport-error",
+    message,
+    retryable,
+    cause,
+  );
 }
 
 export interface WorkerRuntimeHandlers {
@@ -61,10 +103,15 @@ export class WorkerRuntime {
 
   public async start(): Promise<void> {
     if (this.disposed) {
-      throw new Error("Worker runtime is disposed");
+      throw startupError(
+        "disposed",
+        "Worker runtime is disposed",
+        false,
+      );
     }
     const abortController = new AbortController();
     this.startupAbortController = abortController;
+    let startupPhase: "asset" | "transport" = "asset";
 
     try {
       const response = await fetch(this.workerAssetUrl, {
@@ -75,13 +122,22 @@ export class WorkerRuntime {
       });
       this.throwIfDisposed();
       if (!response.ok) {
-        throw new Error(`Worker asset returned HTTP ${response.status}`);
+        throw startupError(
+          "asset-load-failed",
+          `Worker asset returned HTTP ${response.status}`,
+          true,
+        );
       }
       const source = await response.text();
       this.throwIfDisposed();
       if (source.trim().length === 0) {
-        throw new Error("Worker asset was empty");
+        throw startupError(
+          "asset-load-failed",
+          "Worker asset was empty",
+          true,
+        );
       }
+      startupPhase = "transport";
       this.blobUrl = URL.createObjectURL(
         new Blob([source], { type: "text/javascript" }),
       );
@@ -93,7 +149,13 @@ export class WorkerRuntime {
         this.worker = worker;
         const timeoutId = window.setTimeout(() => {
           cleanupStartupListeners();
-          reject(new Error("Timed out initializing the capsule Worker"));
+          reject(
+            startupError(
+              "timeout",
+              "Timed out initializing the capsule Worker",
+              true,
+            ),
+          );
         }, WORKER_READY_TIMEOUT_MS);
 
         const cleanupStartupListeners = () => {
@@ -111,12 +173,24 @@ export class WorkerRuntime {
         };
         const handleStartupAbort = () => {
           cleanupStartupListeners();
-          reject(new Error("Worker runtime is disposed"));
+          reject(
+            startupError(
+              "disposed",
+              "Worker runtime is disposed",
+              false,
+            ),
+          );
         };
         const handleStartupMessage = (event: MessageEvent<unknown>) => {
           if (!hasBoundedJsonShape(event.data) || !isRecord(event.data)) {
             cleanupStartupListeners();
-            reject(new Error("Capsule Worker returned a malformed startup message"));
+            reject(
+              startupError(
+                "internal-error",
+                "Capsule Worker returned a malformed startup message",
+                false,
+              ),
+            );
             return;
           }
           if (event.data.kind === "capsule.worker-ready") {
@@ -133,7 +207,11 @@ export class WorkerRuntime {
             reject(
               isBepEngineError(event.data.error)
                 ? new WorkerRuntimeStartupError(event.data.error)
-                : new Error("Capsule Worker returned an invalid startup error"),
+                : startupError(
+                    "internal-error",
+                    "Capsule Worker returned an invalid startup error",
+                    false,
+                  ),
             );
             return;
           }
@@ -143,29 +221,51 @@ export class WorkerRuntime {
             event.data.message.trim().length > 0
           ) {
             cleanupStartupListeners();
+            const fatalError: BepEngineError = {
+              code: "engine-crash",
+              message: event.data.message,
+              retryable: true,
+            };
             reject(
-              new WorkerRuntimeStartupError({
-                code: "engine-crash",
-                message: event.data.message,
-                retryable: true,
-              }),
+              isBepEngineError(fatalError)
+                ? new WorkerRuntimeStartupError(fatalError)
+                : startupError(
+                    "internal-error",
+                    "Capsule Worker returned an invalid fatal startup message",
+                    false,
+                  ),
             );
             return;
           }
           cleanupStartupListeners();
-          reject(new Error("Capsule Worker returned an unknown startup message"));
+          reject(
+            startupError(
+              "internal-error",
+              "Capsule Worker returned an unknown startup message",
+              false,
+            ),
+          );
         };
         const handleStartupError = (event: ErrorEvent) => {
           cleanupStartupListeners();
           reject(
-            new Error(
-              event.message || "Capsule Worker crashed during initialization",
+            startupError(
+              "engine-crash",
+              "Capsule Worker crashed during initialization",
+              true,
+              event.error,
             ),
           );
         };
         const handleStartupMessageError = () => {
           cleanupStartupListeners();
-          reject(new Error("Capsule Worker sent an unreadable ready message"));
+          reject(
+            startupError(
+              "transport-error",
+              "Capsule Worker sent an unreadable ready message",
+              true,
+            ),
+          );
         };
 
         abortController.signal.addEventListener("abort", handleStartupAbort, {
@@ -185,9 +285,17 @@ export class WorkerRuntime {
         } catch (error) {
           cleanupStartupListeners();
           reject(
-            error instanceof Error
-              ? error
-              : new Error("Failed to initialize the capsule Worker"),
+            errorName(error) === "DataCloneError"
+              ? startupError(
+                  "internal-error",
+                  "Capsule Worker initialization data could not be cloned",
+                  false,
+                  error,
+                )
+              : transportStartupError(
+                  "Failed to send initialization data to the capsule Worker",
+                  error,
+                ),
           );
         }
       });
@@ -195,9 +303,28 @@ export class WorkerRuntime {
       const wasDisposed = this.disposed;
       this.dispose();
       if (wasDisposed) {
-        throw new Error("Worker runtime is disposed", { cause: error });
+        throw startupError(
+          "disposed",
+          "Worker runtime is disposed",
+          false,
+          error,
+        );
       }
-      throw error;
+      if (error instanceof WorkerRuntimeStartupError) {
+        throw error;
+      }
+      if (startupPhase === "asset") {
+        throw startupError(
+          "asset-load-failed",
+          "Failed to load the capsule Worker asset",
+          true,
+          error,
+        );
+      }
+      throw transportStartupError(
+        "Failed to create the capsule Worker transport",
+        error,
+      );
     } finally {
       if (this.startupAbortController === abortController) {
         this.startupAbortController = null;
@@ -344,7 +471,11 @@ export class WorkerRuntime {
 
   private throwIfDisposed(): void {
     if (this.disposed) {
-      throw new Error("Worker runtime is disposed");
+      throw startupError(
+        "disposed",
+        "Worker runtime is disposed",
+        false,
+      );
     }
   }
 }
