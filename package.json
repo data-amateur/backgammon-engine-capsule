@@ -1,8 +1,8 @@
 {
-  "name": "@backgammon-light/engine-capsule",
+  "name": "@rollbg/engine-capsule",
   "version": "0.1.0",
   "private": true,
-  "description": "A separately hosted BEP v1 browser engine capsule for Backgammon Light",
+  "description": "A separately hosted BEP v1 browser engine capsule for RollBG",
   "license": "SEE LICENSE IN NOTICE.md",
   "type": "module",
   "engines": {

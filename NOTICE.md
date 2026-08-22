@@ -1,6 +1,6 @@
 # Notice
 
-Copyright 2026 Backgammon Light contributors.
+Copyright 2026 RollBG contributors.
 
 This is a mixed-license public source repository. The capsule shell, BEP
 protocol code, documentation, and original project build/test code are

@@ -1,5 +1,5 @@
 Backgammon Engine Capsule
-Copyright 2026 Backgammon Light contributors
+Copyright 2026 RollBG contributors
 
 This browser distribution is a mixed-license package. The capsule shell,
 Backgammon Engine Protocol implementation, and original TypeScript components

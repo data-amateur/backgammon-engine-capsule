@@ -9,8 +9,6 @@ export default tseslint.config(
       "dist",
       "node_modules",
       "playwright-report",
-      "public/mock-engine.worker.js",
-      "public/mock-engine.worker.js.map",
       "test-results",
     ],
   },

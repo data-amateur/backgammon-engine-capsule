@@ -10,10 +10,6 @@ coverage/
 .eslintcache
 *.tsbuildinfo
 
-# Generated self-contained Worker bundle
-public/mock-engine.worker.js
-public/mock-engine.worker.js.map
-
 # Extracted GNUbg source and generated native/WASM build state
 third_party/gnubg/work/
 build/gnubg/

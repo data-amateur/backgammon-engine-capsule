@@ -50,7 +50,7 @@ audit the exact subset included in a deployed build and retain every applicable
 notice.
 
 No GNUbg source, weights, build output, or patches may be copied into the
-proprietary Backgammon Light repository or deployment.
+proprietary RollBG repository or deployment.
 
 ## Native harness
 

@@ -1,6 +1,6 @@
 # Backgammon engine capsule
 
-A separately hosted, public browser-engine endpoint for Backgammon Light. It
+A separately hosted, public browser-engine endpoint for RollBG. It
 accepts one origin-checked `MessagePort`, speaks Backgammon Engine Protocol v1
 (BEP v1), and runs GNU Backgammon decisions in a capsule-owned Worker.
 
@@ -22,7 +22,7 @@ non-shipped test/reference code. See `NOTICE.md`,
 The iframe/Worker split is a useful technical and maintenance boundary, not a
 legal exception. Keep the capsule, GNUbg artifacts, build scripts, notices,
 and complete corresponding source public and separate from the proprietary
-host, and obtain qualified legal advice before relying on that separation.
+host.
 
 ## Requirements
 
@@ -66,7 +66,7 @@ accepted only outside production. The corresponding-source URL is generated
 from the capsule origin and exact archive digest. The license URL has a safe
 local default; production requires an explicit HTTPS value.
 
-## Connect Backgammon Light
+## Connect RollBG
 
 In the private application's `client/.env.local`:
 
@@ -149,7 +149,7 @@ exact advertised source archive without downloading it during startup. See
 Create an uncommitted `.env.production.local` with exact release values:
 
 ```dotenv
-VITE_ALLOWED_PARENT_ORIGINS=https://backgammon.example
+VITE_ALLOWED_PARENT_ORIGINS=https://rollbg.example
 VITE_CAPSULE_PUBLIC_ORIGIN=https://engine.example
 VITE_BUILD_ID=gnubg-1.08.003-release.1
 VITE_LICENSE_URL=https://engine.example/LICENSES/GPL-3.0-or-later.txt
