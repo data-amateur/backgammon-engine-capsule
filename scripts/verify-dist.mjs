@@ -424,20 +424,103 @@ if (
 }
 
 const headers = await readFile(path.join(distRoot, "_headers"), "utf8");
+const headerRules = new Map();
+let currentHeaderRule;
+for (const rawLine of headers.split(/\r?\n/u)) {
+  const line = rawLine.trimEnd();
+  if (!line.trim() || line.trimStart().startsWith("#")) {
+    continue;
+  }
+  if (!/^\s/u.test(line)) {
+    if (headerRules.has(line)) {
+      throw new Error(`Static-host headers repeat route: ${line}`);
+    }
+    currentHeaderRule = new Map();
+    headerRules.set(line, currentHeaderRule);
+    continue;
+  }
+  if (!currentHeaderRule) {
+    throw new Error("Static-host headers start with an orphaned header");
+  }
+  const header = line.trim();
+  const separator = header.indexOf(":");
+  if (separator <= 0 || separator === header.length - 1) {
+    throw new Error(`Static-host header is malformed: ${header}`);
+  }
+  const name = header.slice(0, separator);
+  const value = header.slice(separator + 1).trim();
+  if (currentHeaderRule.has(name)) {
+    throw new Error(`Static-host route repeats header: ${name}`);
+  }
+  currentHeaderRule.set(name, value);
+}
+
+const hasExactHeaderRule = (pattern, expectedHeaders) => {
+  const actualHeaders = headerRules.get(pattern);
+  const expectedEntries = Object.entries(expectedHeaders);
+  return (
+    actualHeaders?.size === expectedEntries.length &&
+    expectedEntries.every(
+      ([name, value]) => actualHeaders.get(name) === value,
+    )
+  );
+};
+const sharedHeaderNames = [
+  "Access-Control-Allow-Origin",
+  "Cross-Origin-Resource-Policy",
+  "Referrer-Policy",
+  "X-Content-Type-Options",
+  "X-Robots-Tag",
+  "Permissions-Policy",
+  "Content-Security-Policy",
+];
+const noCachePatterns = [
+  "/",
+  "/index.html",
+  "/gnubg-engine.worker.js",
+  "/gnubg-engine.worker.js.map",
+];
+const immutablePatterns = [
+  "/assets/*",
+  manifest.publicBase + "*",
+  manifest.sourceBundle.publicBase + "*",
+];
+const sourceArchivePattern = `/${manifest.sourceBundle.path}`;
+const expectedPatterns = [
+  "/*",
+  ...noCachePatterns,
+  ...immutablePatterns,
+  sourceArchivePattern,
+];
+const globalHeaders = headerRules.get("/*");
+const contentSecurityPolicy = globalHeaders?.get("Content-Security-Policy");
 if (
-  !headers.includes(manifest.publicBase + "*") ||
-  !headers.includes(manifest.sourceBundle.publicBase + "*") ||
-  !headers.includes(`/${manifest.sourceBundle.path}`) ||
-  !headers.includes("Cache-Control: public, max-age=31536000, immutable") ||
-  !headers.includes("Content-Type: application/gzip") ||
-  !headers.includes("Content-Encoding: identity") ||
-  !headers.includes(
-    "Content-Disposition: attachment; filename=backgammon-engine-capsule-source.tar.gz",
+  headerRules.size !== expectedPatterns.length ||
+  expectedPatterns.some((pattern) => !headerRules.has(pattern)) ||
+  globalHeaders?.size !== sharedHeaderNames.length ||
+  sharedHeaderNames.some(
+    (name) => !globalHeaders?.has(name),
   ) ||
-  !headers.includes("Access-Control-Allow-Origin: *") ||
-  !headers.includes("Cross-Origin-Resource-Policy: cross-origin") ||
-  !headers.includes("'wasm-unsafe-eval'") ||
-  headers.includes(" 'unsafe-eval'")
+  globalHeaders?.get("Access-Control-Allow-Origin") !== "*" ||
+  globalHeaders?.get("Cross-Origin-Resource-Policy") !== "cross-origin" ||
+  noCachePatterns.some(
+    (pattern) =>
+      !hasExactHeaderRule(pattern, { "Cache-Control": "no-cache" }),
+  ) ||
+  immutablePatterns.some(
+    (pattern) =>
+      !hasExactHeaderRule(pattern, {
+        "Cache-Control": "public, max-age=31536000, immutable",
+      }),
+  ) ||
+  !hasExactHeaderRule(sourceArchivePattern, {
+    "Content-Type": "application/gzip",
+    "Content-Encoding": "identity",
+    "Content-Disposition":
+      "attachment; filename=backgammon-engine-capsule-source.tar.gz",
+  }) ||
+  !contentSecurityPolicy?.includes("'wasm-unsafe-eval'") ||
+  contentSecurityPolicy.includes(" 'unsafe-eval'")
 ) {
   throw new Error(
     "Static-host headers do not cover immutable GNUbg assets with the narrow WASM CSP",
