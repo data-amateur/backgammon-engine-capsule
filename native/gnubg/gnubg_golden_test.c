@@ -1217,6 +1217,88 @@ test_checker_analysis(bgc_engine *engine)
         engine, &doubles, &incomplete, &after, 1u, 5u, &analysis, &error), BGC_STATUS_ILLEGAL_TURN, &error);
 }
 
+static void
+test_analysis_bearoff_order(bgc_engine *engine)
+{
+    const struct {
+        const char *name;
+        int near, far;
+        unsigned int bearoff_die, move_die;
+    } fixtures[] = {
+        {"oversized bearoff before higher checker", 1, 2, 3u, 1u},
+        {"bearoff before all checkers are home", 4, 6, 5u, 2u},
+    };
+    for (unsigned int fixture = 0; fixture < sizeof(fixtures) / sizeof(fixtures[0]); fixture++) {
+        for (int color = BGC_PLAYER_WHITE; color <= BGC_PLAYER_BLACK; color++) {
+            const char *test = fixtures[fixture].name;
+            const bgc_player actor = (bgc_player) color;
+            bgc_position position = empty_money_position(BGC_PLAYER_WHITE,
+                fixtures[fixture].bearoff_die, fixtures[fixture].move_die);
+            position.board.points[fixtures[fixture].near].white = 1u;
+            position.board.points[fixtures[fixture].far].white = 1u;
+            position.board.borne_off.white = 13u;
+            position.board.points[23].black = 1u;
+            position.board.borne_off.black = 14u;
+            bgc_position after = position;
+            after.board.points[fixtures[fixture].far].white = 0u;
+            after.board.borne_off.white = 14u;
+            if (actor == BGC_PLAYER_BLACK) {
+                position = reflect_position(&position);
+                after = reflect_position(&after);
+            }
+            const int near = actor == BGC_PLAYER_WHITE ? fixtures[fixture].near : 23 - fixtures[fixture].near;
+            const int far = actor == BGC_PLAYER_WHITE ? fixtures[fixture].far : 23 - fixtures[fixture].far;
+            const bgc_turn_step invalid_steps[] = {
+                {{BGC_LOCATION_POINT, near}, {BGC_LOCATION_BORNE_OFF, 0}, fixtures[fixture].bearoff_die, 0},
+                {{BGC_LOCATION_POINT, far}, {BGC_LOCATION_POINT, near}, fixtures[fixture].move_die, 0},
+            };
+            const bgc_turn_step legal_steps[] = {invalid_steps[1], invalid_steps[0]};
+            const bgc_candidate invalid = {invalid_steps, 2u};
+            const bgc_candidate legal = {legal_steps, 2u};
+            bgc_checker_analysis analysis;
+            const bgc_checker_analysis zero = {0};
+            bgc_error error;
+            memset(&analysis, 0xa5, sizeof(analysis));
+            expect_status(test, bgc_engine_analyze_checker(engine,
+                &position, &invalid, &after.board, 1u, 5u, &analysis, &error),
+                BGC_STATUS_ILLEGAL_TURN, &error);
+            if (memcmp(&analysis, &zero, sizeof(analysis)))
+                record_failure(test, "illegal recorded order returned analysis output");
+            if (expect_status("legal bearoff reversal after rejection", bgc_engine_analyze_checker(engine,
+                    &position, &legal, &after.board, 1u, 5u, &analysis, &error), BGC_STATUS_OK, &error)) {
+                if (memcmp(&analysis.candidates[analysis.played_index].board, &after.board, sizeof(after.board)))
+                    record_failure(test, "legal reversed order returned the wrong played board");
+                if (!bgc_wasm_test_expect_analysis_parity(test, engine,
+                        &position, &legal, &after.board, &analysis))
+                    failures++;
+            }
+            const bgc_settings settings = {BGC_STRENGTH_EXPERT};
+            bgc_candidate_score score;
+            size_t best_index;
+            expect_status("gameplay rejects illegal bearoff order", bgc_engine_choose_turn(engine,
+                &position, &invalid, 1u, &settings, &score, 1u, &best_index, &error),
+                BGC_STATUS_ILLEGAL_TURN, &error);
+            if (!bgc_wasm_test_expect_choose_failure(test, engine, &position,
+                    &invalid, 1u, &settings, BGC_STATUS_ILLEGAL_TURN))
+                failures++;
+            expect_status("gameplay accepts legal bearoff reversal", bgc_engine_choose_turn(engine,
+                &position, &legal, 1u, &settings, &score, 1u, &best_index, &error),
+                BGC_STATUS_OK, &error);
+            if (fixture == 0u) {
+                bgc_position exact_position = position;
+                exact_position.dice[0] = 2u;
+                bgc_turn_step exact_steps[] = {invalid_steps[0], invalid_steps[1]};
+                exact_steps[0].die = 2u;
+                const bgc_candidate exact = {exact_steps, 2u};
+                if (expect_status("exact bearoff below a higher home checker", bgc_engine_analyze_checker(engine,
+                        &exact_position, &exact, &after.board, 1u, 5u, &analysis, &error), BGC_STATUS_OK, &error) &&
+                    memcmp(&analysis.candidates[analysis.played_index].board, &after.board, sizeof(after.board)))
+                    record_failure(test, "exact bearoff returned the wrong played board");
+            }
+        }
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1250,6 +1332,7 @@ main(int argc, char **argv)
     test_cube_decisions(engine);
     test_color_reflection_scores(engine);
     test_checker_analysis(engine);
+    test_analysis_bearoff_order(engine);
     expect_status("engine reset", bgc_engine_reset(engine, &error),
                   BGC_STATUS_OK, &error);
 

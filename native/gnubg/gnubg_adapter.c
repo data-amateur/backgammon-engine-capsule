@@ -355,6 +355,21 @@ replay_candidate(const bgc_position *position,
                 return fail(error, BGC_STATUS_ILLEGAL_TURN,
                             "candidate %zu step %zu bears off before reaching home",
                             candidate_index, step_index);
+            /* ApplySubMove permits bearoff without these intermediate-board rules. */
+            for (int point = 6; point <= BGC_POINT_COUNT; point++) {
+                if (board[1][point] != 0)
+                    return fail(error, BGC_STATUS_ILLEGAL_TURN,
+                                "candidate %zu step %zu bears off while checkers remain outside home",
+                                candidate_index, step_index);
+            }
+            if (expected_destination < -1) {
+                for (int point = source + 1; point < 6; point++) {
+                    if (board[1][point] != 0)
+                        return fail(error, BGC_STATUS_ILLEGAL_TURN,
+                                    "candidate %zu step %zu uses an oversized bearoff die below a higher checker",
+                                    candidate_index, step_index);
+                }
+            }
         } else {
             return fail(error, BGC_STATUS_ILLEGAL_TURN,
                         "candidate %zu step %zu has an invalid destination",

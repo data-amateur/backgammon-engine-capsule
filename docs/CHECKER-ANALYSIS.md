@@ -44,7 +44,11 @@ The pinned generator's maximum must fit the 4,096-position protocol ceiling;
 an exceeded bound is an error, never partial coverage.
 
 The recorded path is replayed with dice availability, direction, bar priority,
-blocks, hits, and bearoff checks. Its step count and total consumed dice must
+blocks, hits, and bearoff checks. Before each bearoff, the evolving intermediate
+board must have all remaining checkers at home. An oversized die additionally
+requires no checker on a higher home point; an exact die may bear off beneath
+a higher checker. A later legal ordering reaching the same final board cannot
+make an earlier illegal bearoff valid. Its step count and total consumed dice must
 match GNUbg's maximal-use requirements, and its final key must belong to the
 generated set and match the supplied expected board. Checking only the final
 board would incorrectly accept a lower die in some terminal bearoffs.
@@ -120,8 +124,11 @@ Review numerical or asset changes before updating the fixture; normal test
 runs never generate their own expected answers. Native tests pin the same
 values and check both colors, absolute best boards, complete root counts,
 alternate paths, forced pass, bar hits, doubles, terminal higher-die use, and
-direct/arena parity. Real WASM tests also check output limits and error
-recovery. Chromium tests exercise actual analysis through the opaque iframe,
+direct/arena parity. Native and real WASM regressions reject premature and
+oversized recorded bearoffs in both colors, accept their legal reversed orders,
+and require subsequent valid analysis on the same engine to succeed. Real
+WASM tests also check output limits and error recovery. Chromium tests exercise
+actual analysis through the opaque iframe,
 existing gameplay, cancellation recreation, asset failure recovery, and the
 downloadable corresponding-source package.
 

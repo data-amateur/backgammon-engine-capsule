@@ -147,11 +147,12 @@ not enforce every full-turn rule. It:
 
 1. asks GNUbg to generate the complete legal move set for the supplied dice;
 2. replays every caller-supplied step on a fresh board while checking dice,
-   direction, bar priority, occupancy, blocks, and hit flags;
+   direction, bar priority, occupancy, blocks, hit flags, and whether all
+   remaining checkers are home before each bearoff; an oversized die also
+   requires no checker on a higher home point of that evolving board;
 3. hashes the resulting board into a GNUbg `PositionKey`;
-4. requires that key to match GNUbg's generated legal set, which also enforces
-   legal oversize bear-off; analysis additionally checks maximal step count
-   and consumed dice to enforce maximum-dice use and the higher-die rule even
+4. requires that key to match GNUbg's generated legal set; analysis additionally
+   checks maximal step count and consumed dice to enforce maximum-dice use and the higher-die rule even
    when two paths produce the same terminal board;
 5. passes the matched key to `ScoreMove`, which handles the post-turn side
    swap, perspective inversion, and cubeful/match equity.

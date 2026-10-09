@@ -137,6 +137,57 @@ try {
     (error) => error instanceof GnubgEngineError && error.bepError.code === "illegal-turn");
 
   for (const actor of ["white", "black"]) {
+    for (const fixture of [
+      { name: "oversized-before-higher-checker", near: 1, far: 2, dice: [3, 1] },
+      { name: "bearoff-before-all-home", near: 4, far: 6, dice: [5, 2] },
+    ]) {
+      const opponent = actor === "white" ? "black" : "white";
+      const point = (relative) => actor === "white" ? relative : 23 - relative;
+      const board = {
+        points: Array.from({ length: 24 }, () => ({ white: 0, black: 0 })),
+        bar: { white: 0, black: 0 }, borneOff: { white: 0, black: 0 },
+      };
+      board.borneOff[actor] = 13;
+      board.borneOff[opponent] = 14;
+      board.points[point(fixture.near)][actor] = 1;
+      board.points[point(fixture.far)][actor] = 1;
+      board.points[point(23)][opponent] = 1;
+      const expectedResultingBoard = structuredClone(board);
+      expectedResultingBoard.borneOff[actor] = 14;
+      expectedResultingBoard.points[point(fixture.far)][actor] = 0;
+      const steps = [
+        { from: { kind: "point", point: point(fixture.near) }, to: { kind: "borne-off" }, die: fixture.dice[0], hit: false },
+        { from: { kind: "point", point: point(fixture.far) }, to: { kind: "point", point: point(fixture.near) }, die: fixture.dice[1], hit: false },
+      ];
+      const invalid = {
+        ...terminal, actor, expectedResultingBoard,
+        position: { ...terminal.position, revision: "bearoff:" + actor + ":" + fixture.name,
+          board, playerOnRoll: actor, dice: fixture.dice },
+        playedTurn: { steps },
+      };
+      assert.throws(() => engine.analyzeChecker(invalid),
+        (error) => error instanceof GnubgEngineError && error.bepError.code === "illegal-turn" && !error.fatal,
+        actor + " " + fixture.name + " must reject the recorded order");
+      const reversed = { ...invalid, playedTurn: { steps: [...steps].reverse() } };
+      const legal = engine.analyzeChecker(reversed);
+      assert.equal(legal.playedLegal, true);
+      assert.deepEqual(legal.candidates.find(({ id }) => id === legal.playedCandidateId).resultingBoard,
+        expectedResultingBoard, actor + " " + fixture.name + " legal reversal");
+      assert.equal(legal.evaluatedPositionCount, legal.legalPositionCount);
+      if (fixture.near === 1) {
+        const exact = structuredClone(invalid);
+        exact.position.dice[0] = 2;
+        exact.playedTurn.steps[0].die = 2;
+        const accepted = engine.analyzeChecker(exact);
+        assert.deepEqual(accepted.candidates.find(({ id }) => id === accepted.playedCandidateId).resultingBoard,
+          expectedResultingBoard, "an exact bearoff die may be used while a higher home checker remains");
+      }
+      assert.equal(engine.analyzeChecker(terminal).equityLoss, 0,
+        "bearoff rejection must preserve the same engine for subsequent valid analysis");
+    }
+  }
+
+  for (const actor of ["white", "black"]) {
     const opponent = actor === "white" ? "black" : "white";
     const point = (relative) => actor === "white" ? relative : 23 - relative;
     const board = {
@@ -204,7 +255,7 @@ try {
     ...doubles, playedTurn: { steps: doubles.playedTurn.steps.slice(0, 3) },
   }), (error) => error instanceof GnubgEngineError && error.bepError.code === "illegal-turn");
   assert.equal(engine.analyzeChecker(terminal).equityLoss, 0, "recoverable failures preserve the engine");
-  console.log("Real GNUbg WASM checker analysis passed: independent equities, both colors, full roots, played outside top five, doubles, forced pass, terminal higher die and exact profiles");
+  console.log("Real GNUbg WASM checker analysis passed: independent equities, both colors, full roots, played outside top five, doubles, forced pass, per-step bearoff legality, terminal higher die and exact profiles");
 } finally {
   engine.dispose();
 }
