@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
+import type { BepAnalyzeCheckerResult } from "../../src/protocol/types";
 
 interface EngineMetadata {
   readonly engineId: string;
@@ -22,6 +23,8 @@ interface EngineMetadata {
 }
 
 interface CapsuleTestResults {
+  readonly analysis: { readonly kind: string; readonly payload: BepAnalyzeCheckerResult };
+  readonly unsupportedAnalysis: { readonly kind: string; readonly error: { readonly code: string } };
   readonly hello: {
     readonly kind: string;
     readonly payload: {
@@ -130,6 +133,28 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
     },
   });
   expect(results.hello.payload.metadata.buildId).not.toContain("mock");
+  expect(results.hello.payload.metadata).toMatchObject({
+    capabilities: { analysis: { schemaVersions: [1], methods: ["analyze-checker"], profiles: ["quick-0ply-v1"] } },
+  });
+  expect(results.analysis.kind, JSON.stringify(results.analysis)).toBe("bep.result");
+  const checker = results.analysis.payload;
+  expect(checker.legalPositionCount).toBe(15);
+  expect(checker.evaluatedPositionCount).toBe(15);
+  expect(checker.candidates).toHaveLength(6);
+  const played = checker.candidates.find(({ id }) => id === checker.playedCandidateId);
+  expect(played?.rank).toBe(11);
+  expect(played?.resultingBoard.points[4]?.white).toBe(1);
+  expect(checker.candidates[0]?.equity).toBeCloseTo(-0.00775571819, 5);
+  expect(played?.equity).toBeCloseTo(-0.127965674, 5);
+  expect(checker.equityLoss).toBeCloseTo(0.120209956, 5);
+  expect(checker.provenance).toMatchObject({
+    engineId: "gnubg-capsule", engineVersion: "1.08.003",
+    depth: 0, noise: 0, cubeful: true, pruning: false,
+    requestedProfile: "quick-0ply-v1", effectiveProfile: "quick-0ply-v1", completion: "complete",
+  });
+  expect(checker.provenance.assetsId).toMatch(/^sha256-[0-9a-f]{64}$/);
+  expect(checker.provenance.buildId).toBe(results.hello.payload.metadata.buildId);
+  expect(results.unsupportedAnalysis).toMatchObject({ kind: "bep.error", error: { code: "unsupported" } });
   const sourceUrl = results.hello.payload.metadata.license.sourceUrl;
   expect(sourceUrl).toBeDefined();
   const sourcePath = new URL(sourceUrl!).pathname;

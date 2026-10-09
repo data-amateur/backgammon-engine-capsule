@@ -27,9 +27,20 @@ Methods are:
 - `choose-turn`: echoes the position revision and returns one supplied opaque
   legal-turn ID.
 - `decide-cube`: echoes the revision and returns one supplied legal action.
+- `analyze-checker`: optional schema-1 Quick checker analysis, available only
+  when `hello.metadata.capabilities.analysis` advertises the method/profile.
+- `analyze-cube`: reserved optional analysis method; currently unsupported.
+
+[Quick checker analysis](CHECKER-ANALYSIS.md) defines its requests, root
+coverage, absolute candidate boards, units, provenance, and additive ABI.
+Quick always evaluates all unique legal final positions at deterministic
+cubeful 0-ply and returns up to five alternatives plus played. It has no
+implicit fallback to a gameplay strength or deeper profile. Hosts must gate
+each analysis request on schema, method, and profile capability; an absent
+capability leaves ordinary gameplay available.
 
 Decision results include search statistics. `completed: false` is valid when
-the engine returns its best legal decision after reaching an internal search
+the gameplay engine returns its best legal decision after reaching an internal search
 limit. Cancellation is different: a cancelled request produces no result, and
 the controller suppresses any late Worker response. `elapsedMs` accepts finite
 non-negative fractional milliseconds so engines can retain `performance.now()`
@@ -52,7 +63,8 @@ Legal-turn candidates may consume fewer than all rolled dice when the
 authoritative host has determined that the remaining dice cannot be played.
 The capsule validates that every supplied step consumes an available die and
 moves in the correct direction, but it does not independently regenerate the
-host's legal-turn set.
+host's legal-turn set for selection. Analysis generates its own complete set
+and validates the recorded path, maximal dice use, and expected final board.
 
 The capsule identity is `gnubg-capsule` and its runtime transport is
 `iframe`. GNUbg advertises standard match/money play, all five accepted

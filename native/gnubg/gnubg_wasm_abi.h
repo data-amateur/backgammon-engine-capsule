@@ -250,6 +250,82 @@ typedef struct {
     uint32_t reserved[10];
 } bgc_wasm_abi_descriptor_v1;
 
+/* Additive analysis ABI 1.0; the gameplay descriptor/layouts above stay exact. */
+#define BGC_WASM_ANALYSIS_VERSION UINT32_C(0x00010000)
+#define BGC_WASM_ANALYSIS_QUICK_0PLY_V1 UINT32_C(1)
+#define BGC_WASM_ANALYSIS_MAX_ALTERNATIVES 5u
+#define BGC_WASM_ANALYSIS_MAX_RETURNED 6u
+
+typedef struct {
+    bgc_wasm_location_v1 from;
+    bgc_wasm_location_v1 to;
+    uint32_t hit;
+} bgc_wasm_analysis_segment_v1;
+
+typedef struct {
+    bgc_wasm_board_v1 board;
+    uint32_t segment_count;
+    bgc_wasm_analysis_segment_v1 segments[BGC_WASM_MAX_TURN_STEPS];
+    float equity;
+    uint32_t rank;
+    uint32_t tied_with_best;
+    uint32_t reserved;
+} bgc_wasm_analysis_candidate_v1;
+
+typedef struct {
+    bgc_wasm_header_v1 header;
+    bgc_wasm_position_v1 position;
+    bgc_wasm_candidate_v1 played;
+    bgc_wasm_board_v1 expected_board;
+    uint32_t profile;
+    uint32_t max_alternatives;
+    uint32_t candidates_offset;
+    uint32_t candidates_capacity;
+    uint32_t reserved[3];
+} bgc_wasm_analysis_request_v1;
+
+typedef struct {
+    bgc_wasm_header_v1 header;
+    uint32_t candidate_count;
+    uint32_t played_index;
+    uint32_t legal_position_count;
+    uint32_t evaluated_position_count;
+    uint32_t forced;
+    uint32_t no_play;
+    float equity_loss;
+    uint32_t depth;
+    uint32_t cubeful;
+    uint32_t deterministic;
+    float noise;
+    uint32_t pruning;
+    uint32_t profile;
+    uint32_t reserved;
+} bgc_wasm_analysis_result_v1;
+
+typedef struct {
+    bgc_wasm_header_v1 header;
+    uint32_t endianness_marker;
+    uint32_t pointer_width;
+    uint32_t request_size;
+    uint32_t result_size;
+    uint32_t candidate_size;
+    uint32_t segment_size;
+    uint32_t max_legal_positions;
+    uint32_t max_alternatives;
+    uint32_t max_returned;
+    uint32_t reserved[5];
+} bgc_wasm_analysis_descriptor_v1;
+
+uint32_t bgc_wasm_analysis_descriptor_size(void);
+int32_t bgc_wasm_get_analysis_descriptor(void *output, uint32_t output_size);
+int32_t bgc_wasm_analyze_checker(
+    uint8_t *arena,
+    uint32_t arena_size,
+    uint32_t request_offset,
+    uint32_t result_offset,
+    uint32_t error_offset
+);
+
 uint32_t bgc_wasm_abi_version(void);
 uint32_t bgc_wasm_abi_descriptor_size(void);
 int32_t bgc_wasm_get_abi_descriptor(void *output, uint32_t output_size);

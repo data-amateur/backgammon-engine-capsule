@@ -25,6 +25,13 @@ The linked module exports:
 - `bgc_wasm_init`, `bgc_wasm_choose_turn`, `bgc_wasm_decide_cube`,
   `bgc_wasm_reset`, and `bgc_wasm_dispose`.
 
+Quick checker analysis adds its own 64-byte descriptor and
+`bgc_wasm_analyze_checker` export without changing that original descriptor
+or any gameplay offsets. See [Quick checker analysis](CHECKER-ANALYSIS.md)
+for the separate layouts, capability negotiation, complete legal-root
+evaluation, provenance, and reference checks. Old modules omit the extension
+and continue serving gameplay.
+
 The caller provides one four-byte-aligned arena of at most 512 KiB. Typed
 ranges are checked for bounds, overflow, alignment, and overlap. Wire values
 are copied into native structs field by field, and outputs are committed only
@@ -97,6 +104,12 @@ late output, and makes the next request initialize a fresh Worker/module. A
 real asset-load failure is retryable through the same boundary. The module is
 retained across games in one match when no cancellation or fatal failure
 occurs.
+
+Analysis uses the same hard termination boundary and one computation at a
+time. Its named Quick profile always scores every legal root at 0-ply, with
+no pruning or noise; it does not inherit the gameplay maximum-strength
+fallback policy described below. Worker startup has a separate 30-second
+timeout before a request budget begins.
 
 ## Search and game bounds
 

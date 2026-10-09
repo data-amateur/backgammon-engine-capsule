@@ -231,6 +231,23 @@ async function runRealEngine() {
       settings,
     },
   );
+  const playedBoard = structuredClone(startingBoard);
+  playedBoard.points[7].white -= 1;
+  playedBoard.points[4].white += 1;
+  const analysisRequest = {
+    schemaVersion: 1,
+    actor: "white",
+    position: createPosition("position:checker-analysis", "checker-play", startingBoard, [1, 2]),
+    profile: "quick-0ply-v1",
+    timeMs: 10_000,
+    playedTurn: { steps: checkerTurns[0].steps },
+    expectedResultingBoard: playedBoard,
+    maxAlternatives: 5,
+  };
+  const analysis = await request(channel.port1, "request:analysis", "analyze-checker", analysisRequest);
+  const unsupportedAnalysis = await request(channel.port1, "request:unsupported-analysis", "analyze-checker", {
+    ...analysisRequest, profile: "deep-2ply-v1",
+  });
   const cube = await request(
     channel.port1,
     "request:cube",
@@ -249,26 +266,32 @@ async function runRealEngine() {
     },
   );
 
+  const cancelBoard = structuredClone(startingBoard);
+  cancelBoard.points[12].white -= 2;
+  cancelBoard.points[9].white += 2;
+  cancelBoard.points[7].white -= 2;
+  cancelBoard.points[4].white += 2;
   channel.port1.postMessage({
     protocol: PROTOCOL,
     version: VERSION,
     sessionNonce: NONCE,
     kind: "bep.request",
     requestId: "request:cancelled",
-    method: "choose-turn",
+    method: "analyze-checker",
     payload: {
-      enginePlayer: "white",
+      ...analysisRequest,
       position: createPosition(
         "position:cancelled",
         "checker-play",
         startingBoard,
-        [1, 2],
+        [3, 3],
       ),
-      legalTurns: checkerTurns,
-      settings: {
-        ...settings,
-        strength: "maximum",
-      },
+      playedTurn: { steps: [12, 12, 7, 7].map((point) => ({
+        from: { kind: "point", point },
+        to: { kind: "point", point: point - 3 },
+        die: 3, hit: false,
+      })) },
+      expectedResultingBoard: cancelBoard,
     },
   });
   channel.port1.postMessage({
@@ -307,6 +330,8 @@ async function runRealEngine() {
   window.capsuleTestResults = {
     hello: helloResult,
     choose,
+    analysis,
+    unsupportedAnalysis,
     cube,
     postCancelHello,
     cancelledResultCount: messages.filter(

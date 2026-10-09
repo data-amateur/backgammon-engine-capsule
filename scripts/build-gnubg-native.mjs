@@ -239,6 +239,7 @@ const harnessSources = [
   "gnubg_init_failure_test.c",
   "gnubg_met_parity_dump.c",
   "gnubg_golden_test.c",
+  "gnubg_analysis_reference_dump.c",
   "gnubg_wasm_public_smoke_test.c",
 ];
 const harnessObjects = harnessSources.map((source) =>
@@ -308,6 +309,10 @@ const runtimeSources = [
   "gnubg_wasm_bridge.c",
 ];
 const executableSpecifications = [
+  {
+    file: path.join(buildRoot, "gnubg-analysis-reference-dump"),
+    sources: ["gnubg_adapter.c", "gnubg_analysis_reference_dump.c"],
+  },
   {
     file: path.join(buildRoot, "gnubg-met-xml-dump"),
     sources: ["gnubg_met_parity_dump.c"],

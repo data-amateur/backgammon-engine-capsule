@@ -625,6 +625,214 @@ bgc_wasm_choose_turn(uint8_t *arena,
         arena, arena_size, request_offset, result_offset, error_offset);
 }
 
+static int
+analysis_board_valid(const bgc_board *board) {
+    uint32_t white = board->bar.white + board->borne_off.white;
+    uint32_t black = board->bar.black + board->borne_off.black;
+    uint32_t point;
+    for (point = 0; point < BGC_POINT_COUNT; point++) {
+        if (board->points[point].white && board->points[point].black)
+            return 0;
+        white += board->points[point].white;
+        black += board->points[point].black;
+    }
+    return white == BGC_CHECKERS_PER_PLAYER && black == BGC_CHECKERS_PER_PLAYER;
+}
+
+static int
+analysis_output_valid(const bgc_checker_analysis *analysis,
+                      const uint32_t capacity) {
+    uint32_t index, previous;
+    if (analysis->candidate_count < 1u || analysis->candidate_count > capacity ||
+        analysis->played_index >= analysis->candidate_count ||
+        analysis->legal_position_count < 1u ||
+        analysis->legal_position_count > BGC_MAX_CANDIDATES ||
+        analysis->evaluated_position_count != analysis->legal_position_count ||
+        analysis->candidate_count > analysis->legal_position_count ||
+        analysis->forced != (analysis->legal_position_count == 1u) ||
+        (analysis->no_play != 0 && analysis->no_play != 1) ||
+        (analysis->no_play && !analysis->forced) ||
+        !isfinite(analysis->equity_loss) || analysis->equity_loss < 0.0f ||
+        analysis->candidates[0].rank != 1u)
+        return 0;
+    for (index = 0; index < analysis->candidate_count; index++) {
+        const bgc_analysis_candidate *candidate = &analysis->candidates[index];
+        uint32_t segment_index;
+        if (!analysis_board_valid(&candidate->board) ||
+            !isfinite(candidate->equity) ||
+            candidate->rank < 1u || candidate->rank > analysis->legal_position_count ||
+            candidate->segment_count > BGC_MAX_TURN_STEPS ||
+            (analysis->no_play ? candidate->segment_count != 0u : candidate->segment_count == 0u) ||
+            candidate->tied_with_best !=
+                (fabsf(analysis->candidates[0].equity - candidate->equity) <= 0.00001f) ||
+            (index > 0u && (candidate->rank <= analysis->candidates[index - 1u].rank ||
+                           candidate->equity > analysis->candidates[index - 1u].equity)))
+            return 0;
+        for (previous = 0; previous < index; previous++)
+            if (memcmp(&candidate->board, &analysis->candidates[previous].board,
+                       sizeof(candidate->board)) == 0)
+                return 0;
+        for (segment_index = 0; segment_index < candidate->segment_count; segment_index++) {
+            const bgc_analysis_segment *segment = &candidate->segments[segment_index];
+            if ((segment->from.kind != BGC_LOCATION_POINT && segment->from.kind != BGC_LOCATION_BAR) ||
+                (segment->to.kind != BGC_LOCATION_POINT && segment->to.kind != BGC_LOCATION_BORNE_OFF) ||
+                (segment->from.kind == BGC_LOCATION_POINT &&
+                 (segment->from.point < 0 || segment->from.point >= BGC_POINT_COUNT)) ||
+                (segment->to.kind == BGC_LOCATION_POINT &&
+                 (segment->to.point < 0 || segment->to.point >= BGC_POINT_COUNT)) ||
+                (segment->hit != 0 && segment->hit != 1))
+                return 0;
+        }
+    }
+    return fabsf(analysis->equity_loss -
+        (analysis->candidates[0].equity -
+         analysis->candidates[analysis->played_index].equity)) <= 0.00001f;
+}
+
+int32_t
+bgc_wasm_analyze_checker_with_engine(bgc_engine *engine,
+                                    uint8_t *arena_memory,
+                                    const uint32_t arena_size,
+                                    const uint32_t request_offset,
+                                    const uint32_t result_offset,
+                                    const uint32_t error_offset) {
+    bgc_wasm_arena_view arena;
+    bgc_wasm_range request_range, result_range, error_range, candidates_range;
+    bgc_wasm_range ranges[4];
+    bgc_wasm_analysis_request_v1 request;
+    bgc_wasm_analysis_result_v1 result = {0};
+    bgc_position position, expected_position;
+    bgc_wasm_position_v1 expected_wire;
+    bgc_candidate played;
+    bgc_turn_step steps[BGC_MAX_TURN_STEPS];
+    bgc_checker_analysis analysis;
+    bgc_error native_error = {{0}};
+    int32_t status;
+    bgc_status native_status;
+    uint32_t index;
+
+    if (!bgc_wasm_arena_view_init(&arena, arena_memory, arena_size) ||
+        !make_struct_range(&arena, request_offset, sizeof(request), &request_range) ||
+        !make_struct_range(&arena, result_offset, sizeof(result), &result_range) ||
+        !make_struct_range(&arena, error_offset, sizeof(bgc_wasm_error_v1), &error_range))
+        return BGC_WASM_STATUS_INVALID_ARGUMENT;
+    ranges[0] = request_range;
+    ranges[1] = result_range;
+    ranges[2] = error_range;
+    if (!bgc_wasm_ranges_are_disjoint(ranges, 3u))
+        return BGC_WASM_STATUS_INVALID_ARGUMENT;
+    bgc_wasm_arena_load(&arena, &request_range, &request, sizeof(request));
+    status = request.header.abi_version != BGC_WASM_ANALYSIS_VERSION
+        ? BGC_WASM_STATUS_UNSUPPORTED
+        : request.header.byte_size != sizeof(request) ? BGC_WASM_STATUS_INVALID_ARGUMENT
+        : BGC_WASM_STATUS_OK;
+    if (status != BGC_WASM_STATUS_OK) {
+        bgc_wasm_arena_clear(&arena, &error_range);
+        return fail_with_message(status, &arena, &error_range, "unsupported analysis request header");
+    }
+    if (request.candidates_capacity < 1u ||
+        request.candidates_capacity > BGC_WASM_ANALYSIS_MAX_RETURNED ||
+        !bgc_wasm_make_array_range(&arena, request.candidates_offset,
+                                  request.candidates_capacity,
+                                  sizeof(bgc_wasm_analysis_candidate_v1),
+                                  BGC_WASM_ANALYSIS_MAX_RETURNED, 4u, 0, &candidates_range))
+        return BGC_WASM_STATUS_INVALID_ARGUMENT;
+    ranges[3] = candidates_range;
+    if (!bgc_wasm_ranges_are_disjoint(ranges, 4u))
+        return BGC_WASM_STATUS_INVALID_ARGUMENT;
+    bgc_wasm_arena_clear(&arena, &error_range);
+    bgc_wasm_arena_clear(&arena, &candidates_range);
+    result.header.abi_version = BGC_WASM_ANALYSIS_VERSION;
+    result.header.byte_size = sizeof(result);
+    bgc_wasm_arena_store(&arena, &result_range, &result, sizeof(result));
+    if (!reserved_is_zero(request.reserved, 3u) ||
+        request.max_alternatives < 1u ||
+        request.max_alternatives > BGC_WASM_ANALYSIS_MAX_ALTERNATIVES ||
+        request.candidates_capacity < request.max_alternatives + 1u)
+        return fail_with_message(BGC_WASM_STATUS_INVALID_ARGUMENT, &arena, &error_range,
+                                 "analysis bounds or reserved fields are invalid");
+    if (request.profile != BGC_WASM_ANALYSIS_QUICK_0PLY_V1)
+        return fail_with_message(BGC_WASM_STATUS_UNSUPPORTED, &arena, &error_range,
+                                 "analysis profile is unsupported");
+    status = convert_position(&request.position, &position);
+    if (status != BGC_WASM_STATUS_OK)
+        return fail_with_message(status, &arena, &error_range, "analysis position is invalid");
+    expected_wire = request.position;
+    expected_wire.board = request.expected_board;
+    status = convert_position(&expected_wire, &expected_position);
+    if (status != BGC_WASM_STATUS_OK)
+        return fail_with_message(status, &arena, &error_range, "expected board is invalid");
+    if (request.played.step_count == 0u && request.played.reserved == 0u) {
+        played.steps = NULL;
+        played.step_count = 0u;
+    } else {
+        status = convert_candidate(&request.played, &played, steps);
+        if (status != BGC_WASM_STATUS_OK)
+            return fail_with_message(status, &arena, &error_range, "played turn encoding is invalid");
+    }
+    if (!engine)
+        return fail_with_message(BGC_WASM_STATUS_NOT_READY, &arena, &error_range,
+                                 "engine is not initialized");
+    native_status = bgc_engine_analyze_checker(engine, &position, &played,
+        &expected_position.board, request.profile, request.max_alternatives, &analysis, &native_error);
+    if (native_status != BGC_STATUS_OK)
+        return fail_with_adapter_error(native_status, &arena, &error_range, &native_error);
+    if (!analysis_output_valid(&analysis, request.candidates_capacity))
+        return fail_with_message(BGC_WASM_STATUS_EVALUATION_FAILED, &arena, &error_range,
+                                 "native engine returned inconsistent analysis");
+    for (index = 0; index < analysis.candidate_count; index++) {
+        const bgc_analysis_candidate *native = &analysis.candidates[index];
+        bgc_wasm_analysis_candidate_v1 wire = {0};
+        bgc_wasm_range item = {
+            candidates_range.offset + index * (uint32_t) sizeof(wire),
+            sizeof(wire), candidates_range.offset + (index + 1u) * (uint32_t) sizeof(wire)
+        };
+        uint32_t point, segment_index;
+        for (point = 0; point < BGC_POINT_COUNT; point++) {
+            wire.board.points[point].white = native->board.points[point].white;
+            wire.board.points[point].black = native->board.points[point].black;
+        }
+        wire.board.bar.white = native->board.bar.white;
+        wire.board.bar.black = native->board.bar.black;
+        wire.board.borne_off.white = native->board.borne_off.white;
+        wire.board.borne_off.black = native->board.borne_off.black;
+        wire.segment_count = native->segment_count;
+        for (segment_index = 0; segment_index < native->segment_count; segment_index++) {
+            const bgc_analysis_segment *segment = &native->segments[segment_index];
+            wire.segments[segment_index].from.kind = (uint32_t) segment->from.kind;
+            wire.segments[segment_index].from.point = segment->from.kind == BGC_LOCATION_POINT ? segment->from.point : 0;
+            wire.segments[segment_index].to.kind = (uint32_t) segment->to.kind;
+            wire.segments[segment_index].to.point = segment->to.kind == BGC_LOCATION_POINT ? segment->to.point : 0;
+            wire.segments[segment_index].hit = (uint32_t) segment->hit;
+        }
+        wire.equity = native->equity;
+        wire.rank = native->rank;
+        wire.tied_with_best = (uint32_t) native->tied_with_best;
+        bgc_wasm_arena_store(&arena, &item, &wire, sizeof(wire));
+    }
+    result.candidate_count = analysis.candidate_count;
+    result.played_index = analysis.played_index;
+    result.legal_position_count = analysis.legal_position_count;
+    result.evaluated_position_count = analysis.evaluated_position_count;
+    result.forced = (uint32_t) analysis.forced;
+    result.no_play = (uint32_t) analysis.no_play;
+    result.equity_loss = analysis.equity_loss;
+    result.cubeful = 1u;
+    result.deterministic = 1u;
+    result.profile = request.profile;
+    bgc_wasm_arena_store(&arena, &result_range, &result, sizeof(result));
+    return BGC_WASM_STATUS_OK;
+}
+
+int32_t
+bgc_wasm_analyze_checker(uint8_t *arena, const uint32_t arena_size,
+                        const uint32_t request_offset, const uint32_t result_offset,
+                        const uint32_t error_offset) {
+    return bgc_wasm_analyze_checker_with_engine(
+        wrapper_state == BGC_WRAPPER_ACTIVE ? wrapper_engine : NULL,
+        arena, arena_size, request_offset, result_offset, error_offset);
+}
+
 int32_t
 bgc_wasm_decide_cube_with_engine(bgc_engine *engine,
                                  uint8_t *arena_memory,

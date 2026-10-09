@@ -14,6 +14,10 @@ extern "C" {
 #define BGC_CHECKERS_PER_PLAYER 15
 #define BGC_MAX_TURN_STEPS 4
 #define BGC_MAX_CANDIDATES 4096
+#define BGC_ANALYSIS_SCHEMA_VERSION 1u
+#define BGC_ANALYSIS_QUICK_0PLY_V1 1u
+#define BGC_ANALYSIS_MAX_ALTERNATIVES 5u
+#define BGC_ANALYSIS_MAX_RETURNED 6u
 #define BGC_MAX_CUBE_ACTIONS 6
 #define BGC_MAX_CUBE_VALUE 4096
 #define BGC_POSITION_ID_LENGTH 14
@@ -158,6 +162,33 @@ typedef struct {
     float cubeless_score;
 } bgc_candidate_score;
 
+/* Analysis alternatives are local positions, never host-issued turn IDs. */
+typedef struct {
+    bgc_location from;
+    bgc_location to;
+    int hit;
+} bgc_analysis_segment;
+
+typedef struct {
+    bgc_board board;
+    bgc_analysis_segment segments[BGC_MAX_TURN_STEPS];
+    uint32_t segment_count;
+    float equity;
+    uint32_t rank;
+    int tied_with_best;
+} bgc_analysis_candidate;
+
+typedef struct {
+    uint32_t candidate_count;
+    uint32_t played_index;
+    uint32_t legal_position_count;
+    uint32_t evaluated_position_count;
+    int forced;
+    int no_play;
+    float equity_loss;
+    bgc_analysis_candidate candidates[BGC_ANALYSIS_MAX_RETURNED];
+} bgc_checker_analysis;
+
 typedef struct {
     bgc_cube_action decision;
     uint32_t selected_index; /* Index into caller-supplied legal_actions. */
@@ -200,6 +231,17 @@ bgc_status bgc_engine_choose_turn(
     bgc_candidate_score *scores_out,
     size_t scores_capacity,
     size_t *best_index_out,
+    bgc_error *error
+);
+
+bgc_status bgc_engine_analyze_checker(
+    bgc_engine *engine,
+    const bgc_position *position,
+    const bgc_candidate *played,
+    const bgc_board *expected_board,
+    uint32_t profile,
+    uint32_t max_alternatives,
+    bgc_checker_analysis *analysis_out,
     bgc_error *error
 );
 

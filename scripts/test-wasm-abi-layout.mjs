@@ -104,6 +104,7 @@ run(compiler, [
 ]);
 for (const scenario of [
   "lifecycle-success",
+  "analysis-boundaries",
   "init-failure",
   "decision-failures",
   "malformed-init-output",

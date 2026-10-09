@@ -20,6 +20,8 @@
 #define BGC_MAX_MATCH_LENGTH 64
 #define BGC_MAX_MATCH_CUBE 64
 #define BGC_MAX_BEAVER_CUBE (BGC_MAX_CUBE_VALUE / 4)
+_Static_assert(MAX_MOVES <= BGC_MAX_CANDIDATES,
+               "the complete pinned GNUbg legal set must fit the analysis bound");
 
 struct bgc_engine {
     int ready;
@@ -906,6 +908,203 @@ bgc_engine_choose_turn(bgc_engine *engine,
 
     free(candidate_keys);
     *best_index_out = best_index;
+    return BGC_STATUS_OK;
+}
+
+static void
+absolute_board(const TanBoard board, const bgc_player actor, bgc_board *output)
+{
+    unsigned int point;
+    int player;
+    memset(output, 0, sizeof(*output));
+    for (player = BGC_PLAYER_WHITE; player <= BGC_PLAYER_BLACK; player++) {
+        const bgc_player color = (bgc_player) player;
+        const int row = color == actor ? 1 : 0;
+        unsigned int total = board[row][24];
+        for (point = 0; point < BGC_POINT_COUNT; point++) {
+            const uint8_t count = (uint8_t) board[row][gnu_point(color, (int) point)];
+            if (color == BGC_PLAYER_WHITE)
+                output->points[point].white = count;
+            else
+                output->points[point].black = count;
+            total += count;
+        }
+        if (color == BGC_PLAYER_WHITE) {
+            output->bar.white = (uint8_t) board[row][24];
+            output->borne_off.white = (uint8_t) (BGC_CHECKERS_PER_PLAYER - total);
+        } else {
+            output->bar.black = (uint8_t) board[row][24];
+            output->borne_off.black = (uint8_t) (BGC_CHECKERS_PER_PLAYER - total);
+        }
+    }
+}
+
+static int
+compare_analysis_moves(const void *left_ptr, const void *right_ptr)
+{
+    const move *left = left_ptr;
+    const move *right = right_ptr;
+    if (left->rScore != right->rScore)
+        return left->rScore > right->rScore ? -1 : 1;
+    if (left->rScore2 != right->rScore2)
+        return left->rScore2 > right->rScore2 ? -1 : 1;
+    /* Exact ties retain a deterministic position-key order. */
+    return memcmp(&left->key, &right->key, sizeof(left->key));
+}
+
+static void
+analysis_candidate(const bgc_position *position, const TanBoard before,
+                   const move *scored, const uint32_t rank, const float best,
+                   bgc_analysis_candidate *output)
+{
+    TanBoard board;
+    unsigned int index;
+    memset(output, 0, sizeof(*output));
+    PositionFromKey(board, &scored->key);
+    absolute_board((ConstTanBoard) board, position->player_on_roll, &output->board);
+    output->equity = scored->rScore;
+    output->rank = rank;
+    output->tied_with_best = fabsf(best - scored->rScore) <= 0.00001f;
+    memcpy(board, before, sizeof(board));
+    for (index = 0; index < scored->cMoves; index++) {
+        const int from = scored->anMove[index * 2];
+        const int to = scored->anMove[index * 2 + 1];
+        bgc_analysis_segment *segment = &output->segments[index];
+        segment->from.kind = from == 24 ? BGC_LOCATION_BAR : BGC_LOCATION_POINT;
+        segment->from.point = from == 24 ? 0 : gnu_point(position->player_on_roll, from);
+        segment->to.kind = to < 0 ? BGC_LOCATION_BORNE_OFF : BGC_LOCATION_POINT;
+        segment->to.point = to < 0 ? 0 : gnu_point(position->player_on_roll, to);
+        segment->hit = to >= 0 && board[0][23 - to] == 1;
+        board[1][from]--;
+        if (to >= 0) {
+            if (segment->hit) {
+                board[0][23 - to] = 0;
+                board[0][24]++;
+            }
+            board[1][to]++;
+        }
+    }
+    output->segment_count = scored->cMoves;
+}
+
+bgc_status
+bgc_engine_analyze_checker(bgc_engine *engine,
+                          const bgc_position *position,
+                          const bgc_candidate *played,
+                          const bgc_board *expected_board,
+                          const uint32_t profile,
+                          const uint32_t max_alternatives,
+                          bgc_checker_analysis *analysis_out,
+                          bgc_error *error)
+{
+    TanBoard board, expected;
+    movelist generated = {0};
+    cubeinfo cube;
+    /* quick-0ply-v1: cubeful, zero plies, no pruning, deterministic, no noise. */
+    const evalcontext context = {TRUE, 0, FALSE, TRUE, 0.0f};
+    bgc_position expected_position;
+    positionkey played_key, expected_key;
+    move *owned;
+    uint32_t count, index, played_rank = 0, top_count;
+    unsigned int played_pips = 0;
+    bgc_checker_analysis output = {0};
+    bgc_status status;
+
+    clear_error(error);
+    if (!analysis_out)
+        return fail(error, BGC_STATUS_INVALID_ARGUMENT, "analysis output is required");
+    memset(analysis_out, 0, sizeof(*analysis_out));
+    if (!engine || !engine->ready || runtime_state != BGC_RUNTIME_ACTIVE)
+        return fail(error, BGC_STATUS_NOT_READY, "GNUbg engine is not ready");
+    if (!position || !played || !expected_board ||
+        played->step_count > BGC_MAX_TURN_STEPS ||
+        (played->step_count && !played->steps) ||
+        max_alternatives < 1u || max_alternatives > BGC_ANALYSIS_MAX_ALTERNATIVES)
+        return fail(error, BGC_STATUS_INVALID_ARGUMENT, "checker analysis arguments are invalid");
+    if (profile != BGC_ANALYSIS_QUICK_0PLY_V1)
+        return fail(error, BGC_STATUS_UNSUPPORTED, "checker analysis profile is unsupported");
+    status = validate_position_metadata(position, TRUE, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    if (position->board.borne_off.white == BGC_CHECKERS_PER_PLAYER ||
+        position->board.borne_off.black == BGC_CHECKERS_PER_PLAYER)
+        return fail(error, BGC_STATUS_INVALID_POSITION, "checker analysis requires a nonterminal position");
+    status = map_board(position, board, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    status = set_cube_info(position, &cube, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    expected_position = *position;
+    expected_position.board = *expected_board;
+    status = map_board(&expected_position, expected, error);
+    if (status != BGC_STATUS_OK)
+        return status;
+    PositionKey((ConstTanBoard) expected, &expected_key);
+    GenerateMoves(&generated, (ConstTanBoard) board,
+                  (int) position->dice[0], (int) position->dice[1], FALSE);
+    /* The pinned generator deduplicates final keys and rejects incomplete turns. */
+    if (generated.cMoves > BGC_MAX_CANDIDATES)
+        return fail(error, BGC_STATUS_UNSUPPORTED, "complete legal set exceeds the analysis bound");
+    output.no_play = generated.cMoves == 0;
+    count = output.no_play ? 1u : generated.cMoves;
+    if (output.no_play) {
+        if (played->step_count != 0)
+            return fail(error, BGC_STATUS_ILLEGAL_TURN, "a forced pass cannot contain checker steps");
+        PositionKey((ConstTanBoard) board, &played_key);
+    } else {
+        status = replay_candidate(position, played, 0, (ConstTanBoard) board, &played_key, error);
+        if (status != BGC_STATUS_OK)
+            return status;
+        for (index = 0; index < played->step_count; index++)
+            played_pips += played->steps[index].die;
+        /* Final-board equality alone cannot enforce higher-die terminal bearoff. */
+        if (played->step_count != generated.cMaxMoves || played_pips != generated.cMaxPips ||
+            find_generated_move(&generated, played_key) < 0)
+            return fail(error, BGC_STATUS_ILLEGAL_TURN, "played turn does not use the complete legal dice");
+    }
+    if (!EqualKeys(played_key, expected_key))
+        return fail(error, BGC_STATUS_ILLEGAL_TURN, "played turn does not match its expected resulting board");
+
+    owned = calloc(count, sizeof(*owned));
+    if (!owned)
+        return fail(error, BGC_STATUS_EVALUATION_FAILED, "could not allocate the complete legal set");
+    /* Recursive scoring shares the generator's workspace: copy before evaluation. */
+    if (output.no_play)
+        owned[0].key = played_key;
+    else
+        memcpy(owned, generated.amMoves, count * sizeof(*owned));
+    for (index = 0; index < count; index++) {
+        if (ScoreMove(NULL, &owned[index], &cube, &context, 0) != 0 ||
+            !isfinite(owned[index].rScore) || !isfinite(owned[index].rScore2)) {
+            free(owned);
+            return fail(error, BGC_STATUS_EVALUATION_FAILED, "GNUbg could not complete Quick checker analysis");
+        }
+    }
+    qsort(owned, count, sizeof(*owned), compare_analysis_moves);
+    for (index = 0; index < count; index++)
+        if (EqualKeys(owned[index].key, played_key)) {
+            played_rank = index;
+            break;
+        }
+    top_count = count < max_alternatives ? count : max_alternatives;
+    output.candidate_count = top_count;
+    output.played_index = played_rank;
+    for (index = 0; index < top_count; index++)
+        analysis_candidate(position, (ConstTanBoard) board, &owned[index],
+                           index + 1u, owned[0].rScore, &output.candidates[index]);
+    if (played_rank >= top_count) {
+        output.played_index = top_count;
+        analysis_candidate(position, (ConstTanBoard) board, &owned[played_rank],
+                           played_rank + 1u, owned[0].rScore, &output.candidates[top_count]);
+        output.candidate_count++;
+    }
+    output.legal_position_count = count;
+    output.evaluated_position_count = count;
+    output.forced = count == 1u;
+    output.equity_loss = owned[0].rScore - owned[played_rank].rScore;
+    free(owned);
+    *analysis_out = output;
     return BGC_STATUS_OK;
 }
 

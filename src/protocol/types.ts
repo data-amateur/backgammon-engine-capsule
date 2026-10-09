@@ -165,6 +165,8 @@ export interface BepEngineCapabilities {
   readonly deterministic: boolean;
   readonly variations: readonly string[];
   readonly strengthPresets: readonly BepStrengthPreset[];
+  /** Optional BEP v1 extension; absence means analysis is unavailable. */
+  readonly analysis?: BepAnalysisCapabilities;
 }
 
 export interface BepEngineLicense {
@@ -255,9 +257,133 @@ export interface BepCubeDecisionResult {
   readonly stats: BepSearchStats;
 }
 
-export type BepMethod = "hello" | "choose-turn" | "decide-cube";
+export const BEP_ANALYSIS_SCHEMA_VERSION = 1 as const;
+export const BEP_ANALYSIS_LIMITS = {
+  maxAlternatives: 5,
+  maxReturnedCandidates: 6,
+  maxLegalPositions: 4_096,
+  equityTolerance: 0.00001,
+} as const;
+
+export type BepAnalysisMethod = "analyze-checker" | "analyze-cube";
+export type BepAnalysisProfile = "quick-0ply-v1" | "deep-2ply-v1";
+
+export interface BepAnalysisCapabilities {
+  readonly schemaVersions: readonly (typeof BEP_ANALYSIS_SCHEMA_VERSION)[];
+  readonly methods: readonly BepAnalysisMethod[];
+  readonly profiles: readonly BepAnalysisProfile[];
+}
+
+export interface BepAnalysisRequest {
+  readonly schemaVersion: typeof BEP_ANALYSIS_SCHEMA_VERSION;
+  readonly position: BepPosition;
+  readonly actor: Player;
+  readonly profile: BepAnalysisProfile;
+  /** Hard budget enforced outside the synchronous compute Worker. */
+  readonly timeMs: number;
+}
+
+export interface BepAnalyzeCheckerRequest extends BepAnalysisRequest {
+  readonly playedTurn: { readonly steps: readonly BepTurnStep[] };
+  readonly expectedResultingBoard: BepBoard;
+  /** Output limit only; Quick always evaluates the complete legal root set. */
+  readonly maxAlternatives: number;
+}
+
+export interface BepAnalysisSegment {
+  readonly from: BepCheckerLocation;
+  readonly to: BepCheckerLocation;
+  readonly hit: boolean;
+  /** No die attribution: GNUbg canonical segments do not supply it. */
+}
+
+export interface BepAnalysisCandidate {
+  /** Absolute resulting-board identity; never a gameplay turn ID. */
+  readonly id: string;
+  readonly resultingBoard: BepBoard;
+  readonly segments: readonly BepAnalysisSegment[];
+  /** GNUbg normalized cubeful equity, from the decision actor's perspective. */
+  readonly equity: number;
+  readonly rank: number;
+  readonly tiedWithBest: boolean;
+}
+
+export interface BepAnalysisProvenance {
+  readonly engineId: string;
+  readonly engineVersion: string;
+  readonly buildId: string;
+  /** Content-addressed identity of the exact module, WASM, data and build info. */
+  readonly assetsId: string;
+  readonly weightsSha256: string;
+  readonly matchEquityTableId: string;
+  readonly matchEquitySha256: string;
+  readonly bearoff: "gnubg-heuristic-1.08.003-no-database";
+  readonly requestedProfile: BepAnalysisProfile;
+  readonly effectiveProfile: BepAnalysisProfile;
+  readonly depth: 0 | 2;
+  readonly cubeful: true;
+  readonly deterministic: true;
+  readonly noise: 0;
+  readonly pruning: boolean;
+  readonly filterPolicy: "all-unique-root-positions-v1" | "quick-top2-window160-max8-plus-played-v1";
+  readonly completion: "complete";
+}
+
+export interface BepAnalyzeCheckerResult {
+  readonly schemaVersion: typeof BEP_ANALYSIS_SCHEMA_VERSION;
+  readonly positionRevision: BepPositionRevision;
+  readonly actor: Player;
+  readonly playedLegal: true;
+  readonly playedCandidateId: string;
+  readonly bestCandidateId: string;
+  /** Top requested alternatives in rank order, plus played if outside them. */
+  readonly candidates: readonly BepAnalysisCandidate[];
+  /** A forced pass has one legal final position: the unchanged board. */
+  readonly legalPositionCount: number;
+  readonly evaluatedPositionCount: number;
+  readonly forced: boolean;
+  readonly noPlay: boolean;
+  readonly equityLoss: number;
+  readonly elapsedMs: number;
+  readonly provenance: BepAnalysisProvenance;
+}
+
+export interface BepAnalyzeCubeRequest extends BepAnalysisRequest {
+  /** Position retains the pre-offer board, cube and offerer's on-roll context. */
+  readonly role: "offer" | "response";
+  readonly recordedAction: "double" | "no-double" | "take" | "pass";
+}
+
+export interface BepAnalyzeCubeResult {
+  readonly schemaVersion: typeof BEP_ANALYSIS_SCHEMA_VERSION;
+  readonly positionRevision: BepPositionRevision;
+  readonly actor: Player;
+  readonly role: "offer" | "response";
+  readonly availableActions: readonly ("double" | "no-double" | "take" | "pass")[];
+  readonly recommendedAction: "double" | "no-double" | "take" | "pass";
+  /** Branch equities retain the offerer's perspective at the pre-offer cube. */
+  readonly equityPerspective: Player;
+  readonly referenceCube: number;
+  readonly noDoubleEquity: number;
+  readonly doubleTakeEquity: number;
+  readonly doublePassEquity: number;
+  readonly recordedActionEquity: number;
+  readonly equityLoss: number;
+  readonly elapsedMs: number;
+  readonly provenance: BepAnalysisProvenance;
+}
+
+export type BepMethod = "hello" | "choose-turn" | "decide-cube" | BepAnalysisMethod;
 
 export interface BepMethodPayloads {
+  readonly "analyze-checker": {
+    readonly request: BepAnalyzeCheckerRequest;
+    readonly result: BepAnalyzeCheckerResult;
+  };
+  readonly "analyze-cube": {
+    readonly request: BepAnalyzeCubeRequest;
+    readonly result: BepAnalyzeCubeResult;
+  };
   readonly hello: {
     readonly request: BepHelloRequest;
     readonly result: BepHelloResult;

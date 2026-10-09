@@ -159,6 +159,73 @@ BGC_ASSERT_OFFSET(bgc_wasm_abi_descriptor_v1, cube_request_size, 80);
 BGC_ASSERT_OFFSET(bgc_wasm_abi_descriptor_v1, cube_result_size, 84);
 BGC_ASSERT_OFFSET(bgc_wasm_abi_descriptor_v1, reserved, 88);
 
+BGC_ASSERT_SIZE(bgc_wasm_analysis_segment_v1, 20);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_segment_v1, from, 0);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_segment_v1, to, 8);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_segment_v1, hit, 16);
+BGC_ASSERT_SIZE(bgc_wasm_analysis_candidate_v1, 152);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_candidate_v1, board, 0);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_candidate_v1, segment_count, 52);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_candidate_v1, segments, 56);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_candidate_v1, equity, 136);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_candidate_v1, rank, 140);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_candidate_v1, tied_with_best, 144);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_candidate_v1, reserved, 148);
+BGC_ASSERT_SIZE(bgc_wasm_analysis_request_v1, 312);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, position, 8);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, played, 128);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, expected_board, 232);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, profile, 284);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, max_alternatives, 288);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, candidates_offset, 292);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, candidates_capacity, 296);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_request_v1, reserved, 300);
+BGC_ASSERT_SIZE(bgc_wasm_analysis_result_v1, 64);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, candidate_count, 8);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, played_index, 12);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, legal_position_count, 16);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, evaluated_position_count, 20);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, forced, 24);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, no_play, 28);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, equity_loss, 32);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, depth, 36);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, cubeful, 40);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, deterministic, 44);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, noise, 48);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, pruning, 52);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, profile, 56);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_result_v1, reserved, 60);
+BGC_ASSERT_SIZE(bgc_wasm_analysis_descriptor_v1, 64);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, request_size, 16);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, result_size, 20);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, candidate_size, 24);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, segment_size, 28);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, max_legal_positions, 32);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, max_alternatives, 36);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, max_returned, 40);
+BGC_ASSERT_OFFSET(bgc_wasm_analysis_descriptor_v1, reserved, 44);
+
+uint32_t
+bgc_wasm_analysis_descriptor_size(void) {
+    return (uint32_t) sizeof(bgc_wasm_analysis_descriptor_v1);
+}
+
+int32_t
+bgc_wasm_get_analysis_descriptor(void *output, uint32_t output_size) {
+    const bgc_wasm_analysis_descriptor_v1 descriptor = {
+        {BGC_WASM_ANALYSIS_VERSION, sizeof(bgc_wasm_analysis_descriptor_v1)},
+        BGC_WASM_ABI_ENDIANNESS_MARKER, sizeof(void *),
+        sizeof(bgc_wasm_analysis_request_v1), sizeof(bgc_wasm_analysis_result_v1),
+        sizeof(bgc_wasm_analysis_candidate_v1), sizeof(bgc_wasm_analysis_segment_v1),
+        BGC_WASM_MAX_CANDIDATES, BGC_WASM_ANALYSIS_MAX_ALTERNATIVES,
+        BGC_WASM_ANALYSIS_MAX_RETURNED, {0}
+    };
+    if (!output || output_size < sizeof(descriptor))
+        return BGC_WASM_STATUS_INVALID_ARGUMENT;
+    memcpy(output, &descriptor, sizeof(descriptor));
+    return BGC_WASM_STATUS_OK;
+}
+
 uint32_t
 bgc_wasm_abi_version(void) {
     return BGC_WASM_ABI_VERSION;

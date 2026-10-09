@@ -61,5 +61,24 @@ main(void) {
     }
 
     puts("GNUbg wasm32 ABI layout checks passed");
+    {
+        bgc_wasm_analysis_descriptor_v1 analysis;
+        CHECK(bgc_wasm_analysis_descriptor_size() == 64u);
+        memset(&analysis, 0xa5, sizeof(analysis));
+        CHECK(bgc_wasm_get_analysis_descriptor(NULL, 64u) == BGC_WASM_STATUS_INVALID_ARGUMENT);
+        CHECK(bgc_wasm_get_analysis_descriptor(&analysis, 63u) == BGC_WASM_STATUS_INVALID_ARGUMENT);
+        CHECK(((uint8_t *) &analysis)[0] == 0xa5u);
+        CHECK(bgc_wasm_get_analysis_descriptor(&analysis, 64u) == BGC_WASM_STATUS_OK);
+        CHECK(analysis.header.abi_version == BGC_WASM_ANALYSIS_VERSION);
+        CHECK(analysis.header.byte_size == 64u);
+        CHECK(analysis.pointer_width == sizeof(void *));
+        CHECK(analysis.endianness_marker == BGC_WASM_ABI_ENDIANNESS_MARKER);
+        CHECK(analysis.request_size == 312u && analysis.result_size == 64u);
+        CHECK(analysis.candidate_size == 152u && analysis.segment_size == 20u);
+        CHECK(analysis.max_legal_positions == 4096u);
+        CHECK(analysis.max_alternatives == 5u && analysis.max_returned == 6u);
+        for (size_t index = 0; index < 5u; index++) CHECK(analysis.reserved[index] == 0u);
+    }
+    puts("Additive analysis ABI layout checks passed");
     return 0;
 }

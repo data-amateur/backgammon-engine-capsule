@@ -1,0 +1,3082 @@
+{
+  "fixtureVersion": 1,
+  "description": "Shared BEP v1 compatibility corpus. Terminal single bearoff is independently +1 money equity, forced, and uses the higher die. Both protocol copies must accept/reject this same serialized corpus.",
+  "validHostMessages": [
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "position:terminal",
+          "phase": "checker-play",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [
+            1,
+            2
+          ],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "money",
+            "length": null,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "white",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "playedTurn": {
+          "steps": [
+            {
+              "from": {
+                "kind": "point",
+                "point": 0
+              },
+              "to": {
+                "kind": "borne-off"
+              },
+              "die": 2,
+              "hit": false
+            }
+          ]
+        },
+        "expectedResultingBoard": {
+          "points": [
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 1
+            }
+          ],
+          "bar": {
+            "white": 0,
+            "black": 0
+          },
+          "borneOff": {
+            "white": 15,
+            "black": 14
+          }
+        },
+        "maxAlternatives": 5
+      }
+    }
+  ],
+  "validEngineMessages": [
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "position:terminal",
+        "actor": "white",
+        "playedLegal": true,
+        "playedCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "bestCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "candidates": [
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": 1,
+            "rank": 1,
+            "tiedWithBest": true
+          }
+        ],
+        "legalPositionCount": 1,
+        "evaluatedPositionCount": 1,
+        "forced": true,
+        "noPlay": false,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:hello:old",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe"
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:hello:new",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe"
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "invalidHostMessages": [
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 2,
+        "position": {
+          "revision": "position:terminal",
+          "phase": "checker-play",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [
+            1,
+            2
+          ],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "money",
+            "length": null,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "white",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "playedTurn": {
+          "steps": [
+            {
+              "from": {
+                "kind": "point",
+                "point": 0
+              },
+              "to": {
+                "kind": "borne-off"
+              },
+              "die": 2,
+              "hit": false
+            }
+          ]
+        },
+        "expectedResultingBoard": {
+          "points": [
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 1
+            }
+          ],
+          "bar": {
+            "white": 0,
+            "black": 0
+          },
+          "borneOff": {
+            "white": 15,
+            "black": 14
+          }
+        },
+        "maxAlternatives": 5
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "position:terminal",
+          "phase": "checker-play",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [
+            1,
+            2
+          ],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "money",
+            "length": null,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "white",
+        "profile": "maximum",
+        "timeMs": 10000,
+        "playedTurn": {
+          "steps": [
+            {
+              "from": {
+                "kind": "point",
+                "point": 0
+              },
+              "to": {
+                "kind": "borne-off"
+              },
+              "die": 2,
+              "hit": false
+            }
+          ]
+        },
+        "expectedResultingBoard": {
+          "points": [
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 1
+            }
+          ],
+          "bar": {
+            "white": 0,
+            "black": 0
+          },
+          "borneOff": {
+            "white": 15,
+            "black": 14
+          }
+        },
+        "maxAlternatives": 5
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "position:terminal",
+          "phase": "checker-play",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [
+            1,
+            2
+          ],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "money",
+            "length": null,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "white",
+        "profile": "quick-0ply-v1",
+        "timeMs": 120001,
+        "playedTurn": {
+          "steps": [
+            {
+              "from": {
+                "kind": "point",
+                "point": 0
+              },
+              "to": {
+                "kind": "borne-off"
+              },
+              "die": 2,
+              "hit": false
+            }
+          ]
+        },
+        "expectedResultingBoard": {
+          "points": [
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 1
+            }
+          ],
+          "bar": {
+            "white": 0,
+            "black": 0
+          },
+          "borneOff": {
+            "white": 15,
+            "black": 14
+          }
+        },
+        "maxAlternatives": 5
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "position:terminal",
+          "phase": "checker-play",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [
+            1,
+            2
+          ],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "money",
+            "length": null,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "white",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "playedTurn": {
+          "steps": [
+            {
+              "from": {
+                "kind": "point",
+                "point": 0
+              },
+              "to": {
+                "kind": "borne-off"
+              },
+              "die": 2,
+              "hit": false
+            }
+          ]
+        },
+        "expectedResultingBoard": {
+          "points": [
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 1
+            }
+          ],
+          "bar": {
+            "white": 0,
+            "black": 0
+          },
+          "borneOff": {
+            "white": 15,
+            "black": 14
+          }
+        },
+        "maxAlternatives": 6
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "position:terminal",
+          "phase": "checker-play",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [
+            1,
+            2
+          ],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "money",
+            "length": null,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "black",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "playedTurn": {
+          "steps": [
+            {
+              "from": {
+                "kind": "point",
+                "point": 0
+              },
+              "to": {
+                "kind": "borne-off"
+              },
+              "die": 2,
+              "hit": false
+            }
+          ]
+        },
+        "expectedResultingBoard": {
+          "points": [
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 0
+            },
+            {
+              "white": 0,
+              "black": 1
+            }
+          ],
+          "bar": {
+            "white": 0,
+            "black": 0
+          },
+          "borneOff": {
+            "white": 15,
+            "black": 14
+          }
+        },
+        "maxAlternatives": 5
+      }
+    }
+  ],
+  "invalidEngineMessages": [
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "position:terminal",
+        "actor": "white",
+        "playedLegal": true,
+        "playedCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "bestCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "candidates": [
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": 1,
+            "rank": 1,
+            "tiedWithBest": true
+          }
+        ],
+        "legalPositionCount": 4097,
+        "evaluatedPositionCount": 1,
+        "forced": true,
+        "noPlay": false,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "position:terminal",
+        "actor": "white",
+        "playedLegal": true,
+        "playedCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "bestCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "candidates": [
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": 1,
+            "rank": 1,
+            "tiedWithBest": true
+          }
+        ],
+        "legalPositionCount": 1,
+        "evaluatedPositionCount": 0,
+        "forced": true,
+        "noPlay": false,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "position:terminal",
+        "actor": "white",
+        "playedLegal": true,
+        "playedCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "bestCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "candidates": [
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": 1,
+            "rank": 1,
+            "tiedWithBest": true
+          }
+        ],
+        "legalPositionCount": 1,
+        "evaluatedPositionCount": 1,
+        "forced": true,
+        "noPlay": false,
+        "equityLoss": -0.01,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "position:terminal",
+        "actor": "white",
+        "playedLegal": true,
+        "playedCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "bestCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "candidates": [
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": 1,
+            "rank": 1,
+            "tiedWithBest": true
+          }
+        ],
+        "legalPositionCount": 1,
+        "evaluatedPositionCount": 1,
+        "forced": true,
+        "noPlay": false,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 1,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "position:terminal",
+        "actor": "white",
+        "playedLegal": true,
+        "playedCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "bestCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "candidates": [
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": 1,
+            "rank": 1,
+            "tiedWithBest": true
+          },
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": 1,
+            "rank": 1,
+            "tiedWithBest": true
+          }
+        ],
+        "legalPositionCount": 1,
+        "evaluatedPositionCount": 1,
+        "forced": true,
+        "noPlay": false,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:analysis",
+      "method": "analyze-checker",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "position:terminal",
+        "actor": "white",
+        "playedLegal": true,
+        "playedCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "bestCandidateId": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+        "candidates": [
+          {
+            "id": "position:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000f0e",
+            "resultingBoard": {
+              "points": [
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 0
+                },
+                {
+                  "white": 0,
+                  "black": 1
+                }
+              ],
+              "bar": {
+                "white": 0,
+                "black": 0
+              },
+              "borneOff": {
+                "white": 15,
+                "black": 14
+              }
+            },
+            "segments": [
+              {
+                "from": {
+                  "kind": "point",
+                  "point": 0
+                },
+                "to": {
+                  "kind": "borne-off"
+                },
+                "hit": false
+              }
+            ],
+            "equity": null,
+            "rank": 1,
+            "tiedWithBest": true
+          }
+        ],
+        "legalPositionCount": 1,
+        "evaluatedPositionCount": 1,
+        "forced": true,
+        "noPlay": false,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    }
+  ]
+}

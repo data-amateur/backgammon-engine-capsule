@@ -290,6 +290,85 @@ encode_candidates(const bgc_candidate *source,
     return 1;
 }
 
+int
+bgc_wasm_test_expect_analysis_parity(const char *test, bgc_engine *engine,
+                                   const bgc_position *position,
+                                   const bgc_candidate *played,
+                                   const bgc_board *expected_board,
+                                   const bgc_checker_analysis *direct)
+{
+    enum { CAPACITY = 4096, CANDIDATES = 312, RESULT = 1232, ERROR = 1400 };
+    uint8_t *arena = calloc(CAPACITY + 16u, 1u);
+    bgc_wasm_analysis_request_v1 request = {0};
+    bgc_wasm_analysis_result_v1 result;
+    bgc_position expected = *position;
+    bgc_wasm_position_v1 expected_wire;
+    uint32_t index;
+    int32_t status;
+    if (!arena) return parity_failure(test, "could not allocate analysis arena");
+    memset(arena + CAPACITY, 0xcc, 16u);
+    request.header.abi_version = BGC_WASM_ANALYSIS_VERSION;
+    request.header.byte_size = sizeof(request);
+    expected.board = *expected_board;
+    if (!encode_position(position, &request.position) ||
+        !encode_position(&expected, &expected_wire) ||
+        !encode_candidates(played, 1u, &request.played)) {
+        free(arena);
+        return parity_failure(test, "analysis fixture encoding failed");
+    }
+    request.expected_board = expected_wire.board;
+    request.profile = 1u;
+    request.max_alternatives = 5u;
+    request.candidates_offset = CANDIDATES;
+    request.candidates_capacity = 6u;
+    memcpy(arena, &request, sizeof(request));
+    status = bgc_wasm_analyze_checker_with_engine(engine, arena, CAPACITY, 0u, RESULT, ERROR);
+    memcpy(&result, arena + RESULT, sizeof(result));
+    if (status != 0 || result.candidate_count != direct->candidate_count ||
+        result.played_index != direct->played_index ||
+        result.legal_position_count != direct->legal_position_count ||
+        result.evaluated_position_count != direct->evaluated_position_count ||
+        result.forced != (uint32_t) direct->forced || result.no_play != (uint32_t) direct->no_play ||
+        memcmp(&result.equity_loss, &direct->equity_loss, sizeof(float)) ||
+        result.depth != 0u || result.cubeful != 1u || result.deterministic != 1u ||
+        result.noise != 0.0f || result.pruning != 0u || result.profile != 1u) {
+        free(arena);
+        return parity_failure(test, "analysis status, counts, settings or loss differ");
+    }
+    for (index = 0; index < direct->candidate_count; index++) {
+        bgc_wasm_analysis_candidate_v1 wire;
+        const bgc_analysis_candidate *native = &direct->candidates[index];
+        uint32_t segment;
+        memcpy(&wire, arena + CANDIDATES + index * sizeof(wire), sizeof(wire));
+        if (sizeof(native->board) != sizeof(wire.board) ||
+            memcmp(&native->board, &wire.board, sizeof(wire.board)) ||
+            memcmp(&native->equity, &wire.equity, sizeof(float)) ||
+            wire.rank != native->rank || wire.segment_count != native->segment_count ||
+            wire.tied_with_best != (uint32_t) native->tied_with_best) {
+            free(arena);
+            return parity_failure(test, "analysis candidate differs");
+        }
+        for (segment = 0; segment < native->segment_count; segment++) {
+            if (wire.segments[segment].from.kind != (uint32_t) native->segments[segment].from.kind ||
+                wire.segments[segment].from.point != native->segments[segment].from.point ||
+                wire.segments[segment].to.kind != (uint32_t) native->segments[segment].to.kind ||
+                wire.segments[segment].to.point != native->segments[segment].to.point ||
+                wire.segments[segment].hit != (uint32_t) native->segments[segment].hit) {
+                free(arena);
+                return parity_failure(test, "canonical segments differ");
+            }
+        }
+    }
+    for (index = CAPACITY; index < CAPACITY + 16u; index++) {
+        if (arena[index] != 0xcc) {
+            free(arena);
+            return parity_failure(test, "analysis overran its arena");
+        }
+    }
+    free(arena);
+    return 1;
+}
+
 static int
 float_bits_equal(const float left, const float right)
 {

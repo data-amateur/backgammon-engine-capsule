@@ -7,6 +7,11 @@ lifecycle, and source minimization without exposing GNUbg's command parser.
 The browser build compiles the same adapter and arena ABI into the real
 capsule-owned GNUbg Worker.
 
+The additive [Quick checker analysis](CHECKER-ANALYSIS.md) entry point
+generates and scores all unique legal roots, validates the recorded turn,
+and returns absolute boards and canonical segments. It uses a separate
+profile and preserves the existing gameplay entry points.
+
 Native executables and object files are ignored build artifacts and are not
 copied into `dist/` or served at port 4174. Their complete buildable source
 is included in the generated corresponding-source archive for every browser
@@ -48,10 +53,11 @@ The command performs these steps as a clean build:
 Generated extraction and build directories are ignored by Git. They can be
 deleted at any time and recreated by the command above.
 
-Native prerequisites are a C11 compiler, GNU Make, `tar`, `patch`, `pkg-config`, and
-the GLib 2.0 development package. For Debian or Ubuntu, the relevant packages
-are normally provided by `build-essential`, `pkg-config`, and
-`libglib2.0-dev`. The source authentication step also requires `gpgv`.
+Native prerequisites are a C11 compiler, GNU Make, `tar`, `patch`, `pkg-config`,
+Flex, Gettext, and the GLib 2.0 development package. For Debian or Ubuntu,
+the relevant packages are normally provided by `build-essential`,
+`pkg-config`, `flex`, `gettext`, and `libglib2.0-dev`.
+The source authentication step also requires `gpgv`.
 
 This build is repeatable from the authenticated source, but is not claimed to
 be bit-for-bit reproducible: the compiler, effective flags, host, and system
@@ -144,7 +150,9 @@ not enforce every full-turn rule. It:
    direction, bar priority, occupancy, blocks, and hit flags;
 3. hashes the resulting board into a GNUbg `PositionKey`;
 4. requires that key to match GNUbg's generated legal set, which also enforces
-   maximum-dice use, the higher-die rule, and legal oversize bear-off;
+   legal oversize bear-off; analysis additionally checks maximal step count
+   and consumed dice to enforce maximum-dice use and the higher-die rule even
+   when two paths produce the same terminal board;
 5. passes the matched key to `ScoreMove`, which handles the post-turn side
    swap, perspective inversion, and cubeful/match equity.
 
@@ -168,7 +176,7 @@ maximizes its equity; a responder minimizes the offerer's equity, using
 `too-good` shares the play-on equity with `no-double`. A singleton legal list is
 returned without evaluation once state and safety bounds have passed.
 
-All analysis equities retain GNUbg's offerer perspective. The selected-action
+Cube-decision equities retain GNUbg's offerer perspective. The selected-action
 equity is the outcome associated with the returned legal token; the separately
 named pre-offer optimum is GNUbg's unrestricted cube recommendation and can
 differ when the host supplies a subset. Both fields are meaningful only when
@@ -238,7 +246,7 @@ The executable currently checks:
   initialization, with 32 MiB initial and 128 MiB maximum memory. Its Node test
   fills memory to the limit and requires cache-allocation failure to return
   cleanly rather than trap.
-- The native API itself permits up to 4,096 candidates at two-ply `maximum`
+- The native gameplay API permits up to 4,096 candidates at two-ply `maximum`
   and has no preemptive cancellation. The browser bridge uses two-ply checker
   evaluation only for at most eight candidates with at least 500 ms and depth
   two available. Tighter requests use expert zero-ply and report

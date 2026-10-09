@@ -135,6 +135,36 @@ bgc_engine_create(const char *weights_path,
     return BGC_STATUS_OK;
 }
 
+static unsigned int fake_analysis_calls;
+static int fake_analysis_corruption;
+
+bgc_status
+bgc_engine_analyze_checker(bgc_engine *engine, const bgc_position *position,
+                          const bgc_candidate *played, const bgc_board *expected,
+                          const uint32_t profile, const uint32_t maximum,
+                          bgc_checker_analysis *output, bgc_error *error)
+{
+    fake_analysis_calls++;
+    fake_expect(engine == &fake_engine && position != NULL, "analysis receives the initialized engine");
+    fake_expect(played->step_count == 0u, "analysis preserves a recorded pass");
+    fake_expect(profile == 1u && maximum == 5u, "analysis preserves the exact profile and output limit");
+    memset(output, 0, sizeof(*output));
+    output->candidate_count = 1;
+    output->legal_position_count = output->evaluated_position_count = 1;
+    output->forced = output->no_play = 1;
+    output->candidates[0].board = *expected;
+    output->candidates[0].equity = 0.25f;
+    output->candidates[0].rank = 1;
+    output->candidates[0].tied_with_best = 1;
+    if (fake_analysis_corruption == 1) output->candidates[0].equity = NAN;
+    if (fake_analysis_corruption == 2) output->candidate_count = 7u;
+    if (fake_analysis_corruption == 3) output->candidates[0].board.bar.white = 15u;
+    if (fake_analysis_corruption == 4) output->candidates[0].segment_count = 5u;
+    if (fake_analysis_corruption == 5) output->equity_loss = -0.25f;
+    clear_fake_error(error);
+    return BGC_STATUS_OK;
+}
+
 bgc_status
 bgc_engine_choose_turn(bgc_engine *engine,
                        const bgc_position *position,
@@ -1342,6 +1372,80 @@ scenario_dispose_before_init_is_terminal(void)
     return 0;
 }
 
+static void
+prepare_analysis(uint8_t *arena)
+{
+    bgc_wasm_analysis_request_v1 *request;
+    memset(arena, 0, TEST_ARENA_SIZE);
+    request = (bgc_wasm_analysis_request_v1 *) (void *) arena;
+    request->header.abi_version = BGC_WASM_ANALYSIS_VERSION;
+    request->header.byte_size = sizeof(*request);
+    request->position.player_on_roll = 0u;
+    request->position.board.points[0].white = 15u;
+    request->position.board.points[23].black = 15u;
+    request->position.dice[0] = 1u;
+    request->position.dice[1] = 2u;
+    request->position.cube.value = 1;
+    request->position.cube.owner = request->position.cube.offered_by = -1;
+    request->expected_board = request->position.board;
+    request->profile = 1u;
+    request->max_alternatives = 5u;
+    request->candidates_offset = 312u;
+    request->candidates_capacity = 6u;
+    memset(arena + 312u, 0xa5, 6u * 152u);
+}
+
+static int
+scenario_analysis_boundaries(void)
+{
+    uint8_t *arena = bgc_wasm_alloc(TEST_ARENA_SIZE);
+    uint8_t snapshot[TEST_ARENA_SIZE];
+    bgc_wasm_analysis_request_v1 *request;
+    bgc_wasm_analysis_result_v1 *result;
+    CHECK(arena != NULL);
+    CHECK(initialize_successfully(arena) == BGC_WASM_STATUS_OK);
+    prepare_analysis(arena);
+    CHECK(bgc_wasm_analyze_checker(arena, TEST_ARENA_SIZE, 0, 1232u, 1400u) == BGC_WASM_STATUS_OK);
+    result = (bgc_wasm_analysis_result_v1 *) (void *) (arena + 1232u);
+    CHECK(result->candidate_count == 1u && result->forced == 1u && result->no_play == 1u);
+    CHECK(result->depth == 0u && result->noise == 0.0f && result->cubeful == 1u);
+    CHECK(fake_analysis_calls == 1u);
+    for (int corruption = 1; corruption <= 5; corruption++) {
+        prepare_analysis(arena);
+        fake_analysis_corruption = corruption;
+        CHECK(bgc_wasm_analyze_checker(arena, TEST_ARENA_SIZE, 0, 1232u, 1400u) ==
+              BGC_WASM_STATUS_EVALUATION_FAILED);
+        CHECK(bytes_are_zero(arena + 312u, 6u * 152u));
+        CHECK(bytes_are_zero(arena + 1240u, 56u));
+    }
+    fake_analysis_corruption = 0;
+    for (int invalid = 0; invalid < 4; invalid++) {
+        prepare_analysis(arena);
+        request = (bgc_wasm_analysis_request_v1 *) (void *) arena;
+        if (invalid == 0) request->candidates_offset++;
+        if (invalid == 1) request->candidates_offset = UINT32_MAX - 3u;
+        if (invalid == 2) request->candidates_capacity = UINT32_MAX;
+        if (invalid == 3) request->candidates_offset = 1232u;
+        memcpy(snapshot, arena, sizeof(snapshot));
+        CHECK(bgc_wasm_analyze_checker(arena, TEST_ARENA_SIZE, 0, 1232u, 1400u) ==
+              BGC_WASM_STATUS_INVALID_ARGUMENT);
+        CHECK(memcmp(snapshot, arena, sizeof(snapshot)) == 0);
+    }
+    prepare_analysis(arena);
+    CHECK(bgc_wasm_analyze_checker(arena, 1401u, 0, 1232u, 1400u) == BGC_WASM_STATUS_INVALID_ARGUMENT);
+    prepare_analysis(arena);
+    request = (bgc_wasm_analysis_request_v1 *) (void *) arena;
+    request->profile = 2u;
+    CHECK(bgc_wasm_analyze_checker(arena, TEST_ARENA_SIZE, 0, 1232u, 1400u) == BGC_WASM_STATUS_UNSUPPORTED);
+    CHECK(bytes_are_zero(arena + 312u, 6u * 152u));
+    CHECK(fake_analysis_calls == 6u && fake_assertion_failures == 0u);
+    bgc_wasm_dispose();
+    prepare_analysis(arena);
+    CHECK(bgc_wasm_analyze_checker(arena, TEST_ARENA_SIZE, 0, 1232u, 1400u) == BGC_WASM_STATUS_NOT_READY);
+    bgc_wasm_free(arena);
+    return 0;
+}
+
 int
 main(const int argc, char **argv)
 {
@@ -1356,6 +1460,8 @@ main(const int argc, char **argv)
     }
     if (strcmp(argv[1], "lifecycle-success") == 0)
         return scenario_lifecycle_success();
+    if (strcmp(argv[1], "analysis-boundaries") == 0)
+        return scenario_analysis_boundaries();
     if (strcmp(argv[1], "init-failure") == 0)
         return scenario_init_failure_is_terminal();
     if (strcmp(argv[1], "decision-failures") == 0)

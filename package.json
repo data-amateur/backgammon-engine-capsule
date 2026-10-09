@@ -40,7 +40,7 @@
     "build:gnubg-wasm": "npm run build:source && npm run build:gnubg-wasm:raw",
     "build:gnubg-wasm:production": "npm run build:source:production && npm run build:gnubg-wasm:raw",
     "build:gnubg-wasm:verification": "npm run build:source:verification && npm run build:gnubg-wasm:raw",
-    "test:gnubg-wasm": "npm run build:gnubg-wasm && node scripts/test-gnubg-wasm.mjs",
+    "test:gnubg-wasm": "npm run build:gnubg-wasm && node scripts/test-gnubg-wasm.mjs && node scripts/test-gnubg-analysis-wasm.mjs",
     "test:gnubg-native:sanitized": "node scripts/test-gnubg-native.mjs --sanitized",
     "test:wasm-abi-layout:sanitized": "node scripts/test-wasm-abi-layout.mjs --sanitized",
     "stage:browser": "node scripts/stage-gnubg-browser-assets.mjs development",

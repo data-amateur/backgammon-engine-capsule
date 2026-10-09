@@ -1,9 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import {
+  BEP_ANALYSIS_SCHEMA_VERSION,
+  BEP_ANALYSIS_LIMITS,
   BEP_RUNTIME_LIMITS,
   BEP_VERSION,
   type BepBoard,
+  type BepAnalysisCandidate,
+  type BepAnalysisProvenance,
+  type BepAnalyzeCheckerRequest,
+  type BepAnalyzeCheckerResult,
   type BepCheckerLocation,
   type BepChooseTurnRequest,
   type BepChooseTurnResult,
@@ -19,6 +25,11 @@ import {
   type BepStrengthPreset,
   type Player,
 } from "../protocol/types";
+import {
+  bepAnalysisCandidateId,
+  bepCheckerAnalysisMatchesRequest,
+  isBepAnalyzeCheckerRequest,
+} from "../protocol/validation";
 
 export interface GnubgAssetUrls {
   readonly moduleUrl: string;
@@ -61,6 +72,15 @@ export interface GnubgWasmModule {
     errorOffset: number,
   ): number;
   _bgc_wasm_dispose(): void;
+  _bgc_wasm_analysis_descriptor_size?(): number;
+  _bgc_wasm_get_analysis_descriptor?(pointer: number, byteSize: number): number;
+  _bgc_wasm_analyze_checker?(
+    arena: number,
+    arenaSize: number,
+    requestOffset: number,
+    resultOffset: number,
+    errorOffset: number,
+  ): number;
 }
 
 export type GnubgModuleFactory = (options: {
@@ -89,6 +109,10 @@ export class GnubgEngineError extends Error {
 
 const ABI_VERSION = 0x0001_0000;
 const ABI_DESCRIPTOR_SIZE = 128;
+const ANALYSIS_DESCRIPTOR_SIZE = 64;
+const ANALYSIS_REQUEST_SIZE = 312;
+const ANALYSIS_RESULT_SIZE = 64;
+const ANALYSIS_CANDIDATE_SIZE = 152;
 const ABI_ENDIANNESS_MARKER = 0x0102_0304;
 const ARENA_SIZE = 512 * 1024;
 const ERROR_SIZE = 256;
@@ -229,6 +253,11 @@ export const GNUBG_ENGINE_METADATA: BepEngineMetadata = {
       "expert",
       "maximum",
     ],
+    analysis: {
+      schemaVersions: [BEP_ANALYSIS_SCHEMA_VERSION],
+      methods: ["analyze-checker"],
+      profiles: ["quick-0ply-v1"],
+    },
   },
 };
 
@@ -360,6 +389,61 @@ function verifyDescriptor(module: GnubgWasmModule): void {
   }
 }
 
+function verifyAnalysisDescriptor(module: GnubgWasmModule): boolean {
+  const size = module._bgc_wasm_analysis_descriptor_size;
+  const read = module._bgc_wasm_get_analysis_descriptor;
+  const analyze = module._bgc_wasm_analyze_checker;
+  if (!size && !read && !analyze) return false;
+  if (!size || !read || !analyze || size() !== ANALYSIS_DESCRIPTOR_SIZE) {
+    throw engineError("version-mismatch", "GNUbg analysis ABI is unavailable or inconsistent", false, true);
+  }
+  const pointer = module._malloc(ANALYSIS_DESCRIPTOR_SIZE);
+  if (!pointer) throw fatalError("Could not allocate the GNUbg analysis descriptor");
+  try {
+    if (read(pointer, ANALYSIS_DESCRIPTOR_SIZE) !== STATUS_OK) {
+      throw engineError("version-mismatch", "Could not read the GNUbg analysis descriptor", false, true);
+    }
+    const view = currentView(module, pointer, ANALYSIS_DESCRIPTOR_SIZE);
+    const expected = [ABI_VERSION, ANALYSIS_DESCRIPTOR_SIZE, ABI_ENDIANNESS_MARKER, 4,
+      ANALYSIS_REQUEST_SIZE, ANALYSIS_RESULT_SIZE, ANALYSIS_CANDIDATE_SIZE, 20,
+      BEP_ANALYSIS_LIMITS.maxLegalPositions, BEP_ANALYSIS_LIMITS.maxAlternatives,
+      BEP_ANALYSIS_LIMITS.maxReturnedCandidates, 0, 0, 0, 0, 0];
+    if (expected.some((value, index) => view.getUint32(index * 4, true) !== value)) {
+      throw engineError("version-mismatch", "GNUbg analysis ABI layout is unsupported", false, true);
+    }
+    return true;
+  } finally {
+    module._free(pointer);
+  }
+}
+
+function analysisAssetsId(assets: GnubgAssetUrls): string | null {
+  const urls = [assets.moduleUrl, assets.wasmUrl, assets.dataUrl].map((url) => new URL(url));
+  const identities = urls.map((url) =>
+    url.pathname.match(/\/engines\/(sha256-[0-9a-f]{64})\/gnubg-wasm\.(?:mjs|wasm|data)$/)?.[1]);
+  return identities[0] && identities.every((id) => id === identities[0]) &&
+    urls.every((url) => url.origin === urls[0]!.origin && !url.search && !url.hash)
+    ? identities[0] : null;
+}
+
+function readAnalysisBoard(view: DataView, offset: number): BepBoard {
+  const counts = (at: number) => ({ white: view.getUint8(at), black: view.getUint8(at + 1) });
+  return {
+    points: Array.from({ length: 24 }, (_, index) => counts(offset + index * 2)),
+    bar: counts(offset + 48),
+    borneOff: counts(offset + 50),
+  };
+}
+
+function readAnalysisLocation(view: DataView, offset: number): BepCheckerLocation {
+  const kind = view.getUint32(offset, true);
+  const point = view.getInt32(offset + 4, true);
+  if (kind === 0 && point >= 0 && point < 24) return { kind: "point", point };
+  if (point === 0 && kind === 1) return { kind: "bar" };
+  if (point === 0 && kind === 2) return { kind: "borne-off" };
+  throw fatalError("GNUbg returned an invalid analysis segment location");
+}
+
 function readNativeError(
   module: GnubgWasmModule,
   arena: number,
@@ -464,6 +548,17 @@ function resolveSearchPolicy(
   };
 }
 
+function writeBoard(view: DataView, offset: number, board: BepBoard): void {
+  board.points.forEach((point, index) => {
+    view.setUint8(offset + index * 2, point.white);
+    view.setUint8(offset + index * 2 + 1, point.black);
+  });
+  view.setUint8(offset + 48, board.bar.white);
+  view.setUint8(offset + 49, board.bar.black);
+  view.setUint8(offset + 50, board.borneOff.white);
+  view.setUint8(offset + 51, board.borneOff.black);
+}
+
 function writePosition(view: DataView, offset: number, position: BepPosition): void {
   if (position.rules.variation !== "standard") {
     throw engineError(
@@ -473,14 +568,7 @@ function writePosition(view: DataView, offset: number, position: BepPosition): v
       false,
     );
   }
-  position.board.points.forEach((point, index) => {
-    view.setUint8(offset + index * 2, point.white);
-    view.setUint8(offset + index * 2 + 1, point.black);
-  });
-  view.setUint8(offset + 48, position.board.bar.white);
-  view.setUint8(offset + 49, position.board.bar.black);
-  view.setUint8(offset + 50, position.board.borneOff.white);
-  view.setUint8(offset + 51, position.board.borneOff.black);
+  writeBoard(view, offset, position.board);
   view.setUint32(offset + 52, PLAYER[position.playerOnRoll], true);
   view.setUint32(offset + 56, position.dice[0] ?? 0, true);
   view.setUint32(offset + 60, position.dice[1] ?? 0, true);
@@ -633,6 +721,8 @@ export class GnubgEngine {
   private constructor(
     private readonly module: GnubgWasmModule,
     arena: number,
+    private readonly assetsId: string | null,
+    private readonly analysisAvailable: boolean,
   ) {
     this.arena = arena;
   }
@@ -675,11 +765,12 @@ export class GnubgEngine {
     let arena = 0;
     try {
       verifyDescriptor(module);
+      const analysisAvailable = verifyAnalysisDescriptor(module);
       arena = module._bgc_wasm_alloc(ARENA_SIZE);
       if (!arena) {
         throw fatalError("Could not allocate the GNUbg request arena");
       }
-      const engine = new GnubgEngine(module, arena);
+      const engine = new GnubgEngine(module, arena, analysisAssetsId(assets), analysisAvailable);
       engine.initialize();
       return engine;
     } catch (cause) {
@@ -696,7 +787,15 @@ export class GnubgEngine {
     if (!request.supportedProtocolVersions.includes(BEP_VERSION)) {
       throw engineError("unsupported", "BEP v1 is not supported by the host", false, false);
     }
-    return { selectedProtocolVersion: BEP_VERSION, metadata: GNUBG_ENGINE_METADATA };
+    if (this.analysisAvailable && this.assetsId) {
+      return { selectedProtocolVersion: BEP_VERSION, metadata: GNUBG_ENGINE_METADATA };
+    }
+    const capabilities = { ...GNUBG_ENGINE_METADATA.capabilities };
+    delete capabilities.analysis;
+    return {
+      selectedProtocolVersion: BEP_VERSION,
+      metadata: { ...GNUBG_ENGINE_METADATA, capabilities },
+    };
   }
 
   public chooseTurn(
@@ -805,6 +904,137 @@ export class GnubgEngine {
         completed: search.completed,
       },
     };
+  }
+
+  public analyzeChecker(
+    request: BepAnalyzeCheckerRequest,
+    startedAt = performance.now(),
+  ): BepAnalyzeCheckerResult {
+    this.assertUsable();
+    if (!this.analysisAvailable || !this.assetsId || !this.module._bgc_wasm_analyze_checker) {
+      throw engineError("unsupported", "This GNUbg build does not support identified checker analysis", false, false);
+    }
+    if (!isBepAnalyzeCheckerRequest(request)) {
+      throw engineError("invalid-request", "Checker analysis request is malformed", false, false);
+    }
+    if (request.profile !== "quick-0ply-v1") {
+      throw engineError("unsupported", "This GNUbg build supports Quick 0-ply analysis only", false, false);
+    }
+    const candidatesOffset = ANALYSIS_REQUEST_SIZE;
+    const capacity = request.maxAlternatives + 1;
+    const resultOffset = candidatesOffset + capacity * ANALYSIS_CANDIDATE_SIZE;
+    const errorOffset = resultOffset + ANALYSIS_RESULT_SIZE;
+    const usedSize = errorOffset + ERROR_SIZE;
+    const before = currentView(this.module, this.arena, usedSize);
+    new Uint8Array(before.buffer, before.byteOffset, usedSize).fill(0);
+    before.setUint32(0, ABI_VERSION, true);
+    before.setUint32(4, ANALYSIS_REQUEST_SIZE, true);
+    writePosition(before, 8, request.position);
+    before.setUint32(128, request.playedTurn.steps.length, true);
+    request.playedTurn.steps.forEach((step, index) => {
+      const offset = 136 + index * 24;
+      writeLocation(before, offset, step.from);
+      writeLocation(before, offset + 8, step.to);
+      before.setUint32(offset + 16, step.die, true);
+      before.setUint32(offset + 20, step.hit ? 1 : 0, true);
+    });
+    writeBoard(before, 232, request.expectedResultingBoard);
+    before.setUint32(284, 1, true);
+    before.setUint32(288, request.maxAlternatives, true);
+    before.setUint32(292, candidatesOffset, true);
+    before.setUint32(296, capacity, true);
+
+    let status: number;
+    try {
+      status = this.module._bgc_wasm_analyze_checker(this.arena, usedSize, 0, resultOffset, errorOffset);
+    } catch (cause) {
+      this.terminal = true;
+      throw fatalError("GNUbg checker analysis crashed", cause);
+    }
+    const nativeMessage = readNativeError(this.module, this.arena, errorOffset);
+    if (status !== STATUS_OK) {
+      const error = mappedStatusError(status, nativeMessage);
+      this.terminal ||= error.fatal;
+      throw error;
+    }
+    const after = currentView(this.module, this.arena, usedSize);
+    this.verifyHeader(after, resultOffset, ANALYSIS_RESULT_SIZE, "analysis result");
+    const count = after.getUint32(resultOffset + 8, true);
+    const playedIndex = after.getUint32(resultOffset + 12, true);
+    const forced = after.getUint32(resultOffset + 24, true);
+    const noPlay = after.getUint32(resultOffset + 28, true);
+    if (count < 1 || count > capacity || playedIndex >= count || forced > 1 || noPlay > 1 ||
+      after.getUint32(resultOffset + 36, true) !== 0 ||
+      after.getUint32(resultOffset + 40, true) !== 1 ||
+      after.getUint32(resultOffset + 44, true) !== 1 ||
+      after.getFloat32(resultOffset + 48, true) !== 0 ||
+      after.getUint32(resultOffset + 52, true) !== 0 ||
+      after.getUint32(resultOffset + 56, true) !== 1 ||
+      after.getUint32(resultOffset + 60, true) !== 0) {
+      this.failIntegrity("GNUbg returned invalid Quick analysis settings or indices");
+    }
+    const candidates: BepAnalysisCandidate[] = Array.from({ length: count }, (_, index) => {
+      const offset = candidatesOffset + index * ANALYSIS_CANDIDATE_SIZE;
+      const resultingBoard = readAnalysisBoard(after, offset);
+      const segmentCount = after.getUint32(offset + 52, true);
+      const tied = after.getUint32(offset + 144, true);
+      if (segmentCount > 4 || tied > 1 || after.getUint32(offset + 148, true) !== 0) {
+        this.failIntegrity("GNUbg returned an invalid analysis candidate");
+      }
+      this.verifyZeroWords(after, offset + 56 + segmentCount * 20, (4 - segmentCount) * 5, "unused segments");
+      return {
+        id: bepAnalysisCandidateId(resultingBoard),
+        resultingBoard,
+        segments: Array.from({ length: segmentCount }, (_, segmentIndex) => {
+          const at = offset + 56 + segmentIndex * 20;
+          const hit = after.getUint32(at + 16, true);
+          if (hit > 1) this.failIntegrity("GNUbg returned an invalid analysis hit flag");
+          return { from: readAnalysisLocation(after, at), to: readAnalysisLocation(after, at + 8), hit: hit === 1 };
+        }),
+        equity: after.getFloat32(offset + 136, true),
+        rank: after.getUint32(offset + 140, true),
+        tiedWithBest: tied === 1,
+      };
+    });
+    const provenance: BepAnalysisProvenance = {
+      engineId: GNUBG_ENGINE_METADATA.engineId,
+      engineVersion: GNUBG_ENGINE_METADATA.version,
+      buildId: GNUBG_ENGINE_METADATA.buildId,
+      assetsId: this.assetsId,
+      weightsSha256: "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+      matchEquityTableId: "Kazaross-XG2",
+      matchEquitySha256: "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+      bearoff: "gnubg-heuristic-1.08.003-no-database",
+      requestedProfile: request.profile,
+      effectiveProfile: "quick-0ply-v1",
+      depth: 0,
+      cubeful: true,
+      deterministic: true,
+      noise: 0,
+      pruning: false,
+      filterPolicy: "all-unique-root-positions-v1",
+      completion: "complete",
+    };
+    const result: BepAnalyzeCheckerResult = {
+      schemaVersion: BEP_ANALYSIS_SCHEMA_VERSION,
+      positionRevision: request.position.revision,
+      actor: request.actor,
+      playedLegal: true,
+      playedCandidateId: candidates[playedIndex]!.id,
+      bestCandidateId: candidates[0]!.id,
+      candidates,
+      legalPositionCount: after.getUint32(resultOffset + 16, true),
+      evaluatedPositionCount: after.getUint32(resultOffset + 20, true),
+      forced: forced === 1,
+      noPlay: noPlay === 1,
+      equityLoss: after.getFloat32(resultOffset + 32, true),
+      elapsedMs: elapsedSince(startedAt),
+      provenance,
+    };
+    if (!bepCheckerAnalysisMatchesRequest(request, result)) {
+      this.failIntegrity("GNUbg returned inconsistent or uncorrelated checker analysis");
+    }
+    return result;
   }
 
   public decideCube(

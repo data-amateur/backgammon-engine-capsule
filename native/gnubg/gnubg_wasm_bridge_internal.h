@@ -30,6 +30,15 @@ int32_t bgc_wasm_choose_turn_with_engine(
     uint32_t error_offset
 );
 
+int32_t bgc_wasm_analyze_checker_with_engine(
+    bgc_engine *engine,
+    uint8_t *arena,
+    uint32_t arena_size,
+    uint32_t request_offset,
+    uint32_t result_offset,
+    uint32_t error_offset
+);
+
 int32_t bgc_wasm_decide_cube_with_engine(
     bgc_engine *engine,
     uint8_t *arena,

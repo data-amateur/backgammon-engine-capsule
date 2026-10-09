@@ -169,6 +169,26 @@ test_complete_bar_hit(bgc_engine *engine)
             &score, 1, best_index))
         failures++;
 
+    bgc_board after_hit = position.board;
+    bgc_checker_analysis analysis;
+    after_hit.bar.white = 0;
+    after_hit.bar.black = 1;
+    after_hit.points[21].white = 1;
+    after_hit.points[21].black = 0;
+    if (expect_status("analysis bar hit", bgc_engine_analyze_checker(
+            engine, &position, &candidate, &after_hit, 1u, 5u, &analysis, &error),
+            BGC_STATUS_OK, &error)) {
+        const bgc_analysis_candidate *played = &analysis.candidates[analysis.played_index];
+        if (!analysis.forced || analysis.no_play || played->segment_count != 1u ||
+            played->segments[0].from.kind != BGC_LOCATION_BAR ||
+            played->segments[0].to.point != 21 || !played->segments[0].hit ||
+            played->board.bar.black != 1u)
+            record_failure("analysis bar hit", "canonical hit or resulting board differs");
+        if (!bgc_wasm_test_expect_analysis_parity("analysis bar hit", engine,
+                &position, &candidate, &after_hit, &analysis))
+            failures++;
+    }
+
     status = bgc_engine_choose_turn(engine, &position,
                                     &non_boolean_hit_candidate, 1,
                                     &settings, &score, 1, &best_index, &error);
@@ -1047,6 +1067,156 @@ test_color_reflection_scores(bgc_engine *engine)
            white_scores[0].score, white_scores[1].score, white_best);
 }
 
+static unsigned int
+analysis_actor_count(const bgc_checker_counts counts, const bgc_player actor)
+{
+    return actor == BGC_PLAYER_WHITE ? counts.white : counts.black;
+}
+
+static void
+test_checker_analysis(bgc_engine *engine)
+{
+    /* Pinned by gnubg-analysis-reference-dump, which bypasses adapter mapping. */
+    const float best_equities[] = {-0.00775571819f, 0.821909428f, -0.00775571819f};
+    const float played_equities[] = {-0.0221467316f, 0.806735754f, -0.127965674f};
+    const uint32_t played_ranks[] = {2u, 2u, 11u};
+    int color, fixture;
+    bgc_error error;
+    bgc_checker_analysis analysis;
+    for (color = 0; color <= 1; color++) {
+        for (fixture = 0; fixture < 3; fixture++) {
+            const bgc_player actor = (bgc_player) color;
+            bgc_position position = starting_position(actor, 1, 2);
+            bgc_board expected = position.board;
+            const int source = fixture == 2 ? 7 : 23;
+            const int from = actor == BGC_PLAYER_WHITE ? source : 23 - source;
+            const int middle = actor == BGC_PLAYER_WHITE ? source - 1 : 24 - source;
+            const int to = actor == BGC_PLAYER_WHITE ? source - 3 : 26 - source;
+            const bgc_turn_step steps[] = {
+                {{BGC_LOCATION_POINT, from}, {BGC_LOCATION_POINT, middle}, 1u, 0},
+                {{BGC_LOCATION_POINT, middle}, {BGC_LOCATION_POINT, to}, 2u, 0},
+            };
+            const bgc_candidate played = {steps, 2u};
+            if (actor == BGC_PLAYER_WHITE) {
+                expected.points[from].white--;
+                expected.points[to].white++;
+            } else {
+                expected.points[from].black--;
+                expected.points[to].black++;
+            }
+            if (fixture == 1) {
+                position.match.mode = BGC_MATCH_MODE_MATCH;
+                position.match.length = 5;
+                position.match.score.white = actor == BGC_PLAYER_WHITE ? 1u : 3u;
+                position.match.score.black = actor == BGC_PLAYER_BLACK ? 1u : 3u;
+                position.cube.value = 2;
+                position.cube.owner = actor;
+            }
+            if (!expect_status("Quick full-root reference", bgc_engine_analyze_checker(
+                engine, &position, &played, &expected, 1u, 5u, &analysis, &error), BGC_STATUS_OK, &error))
+                continue;
+            const bgc_analysis_candidate *best = &analysis.candidates[0];
+            const bgc_analysis_candidate *actual = &analysis.candidates[analysis.played_index];
+            if (analysis.legal_position_count != 15u || analysis.evaluated_position_count != 15u ||
+                analysis.candidate_count != (fixture == 2 ? 6u : 5u) ||
+                actual->rank != played_ranks[fixture] || analysis.forced || analysis.no_play ||
+                memcmp(&actual->board, &expected, sizeof(expected)) ||
+                fabsf(best->equity - best_equities[fixture]) > 0.00001f ||
+                fabsf(actual->equity - played_equities[fixture]) > 0.00001f ||
+                fabsf(analysis.equity_loss - (best_equities[fixture] - played_equities[fixture])) > 0.00001f)
+                record_failure("Quick reference", "counts, rank, board or independently pinned equities differ");
+            const unsigned int best_source = actor == BGC_PLAYER_WHITE ? 23u : 0u;
+            const unsigned int best_destination = actor == BGC_PLAYER_WHITE ? 22u : 1u;
+            const unsigned int mid_source = actor == BGC_PLAYER_WHITE ? 12u : 11u;
+            const unsigned int mid_destination = actor == BGC_PLAYER_WHITE ? 10u : 13u;
+            if (analysis_actor_count(best->board.points[best_source], actor) != 1u ||
+                analysis_actor_count(best->board.points[best_destination], actor) != 1u ||
+                analysis_actor_count(best->board.points[mid_source], actor) != 4u ||
+                analysis_actor_count(best->board.points[mid_destination], actor) != 1u)
+                record_failure("Quick orientation", "independently supplied best board is not absolute");
+            if (!bgc_wasm_test_expect_analysis_parity("Quick checker analysis", engine,
+                &position, &played, &expected, &analysis)) failures++;
+            /* The other die order reaches the same unique legal final board. */
+            bgc_turn_step reversed[] = {
+                {{BGC_LOCATION_POINT, from}, {BGC_LOCATION_POINT, actor == BGC_PLAYER_WHITE ? source - 2 : 25 - source}, 2u, 0},
+                {{BGC_LOCATION_POINT, actor == BGC_PLAYER_WHITE ? source - 2 : 25 - source}, {BGC_LOCATION_POINT, to}, 1u, 0},
+            };
+            const bgc_candidate alternate_path = {reversed, 2u};
+            bgc_checker_analysis duplicate;
+            if (expect_status("duplicate path analysis", bgc_engine_analyze_checker(
+                engine, &position, &alternate_path, &expected, 1u, 5u, &duplicate, &error), BGC_STATUS_OK, &error) &&
+                (duplicate.legal_position_count != 15u ||
+                 memcmp(&duplicate.candidates[duplicate.played_index].board, &actual->board, sizeof(expected))))
+                record_failure("deduplication", "equivalent played paths produced different alternatives");
+        }
+    }
+
+    bgc_position terminal = empty_money_position(BGC_PLAYER_WHITE, 1, 2);
+    terminal.board.points[0].white = terminal.board.points[23].black = 1u;
+    terminal.board.borne_off.white = terminal.board.borne_off.black = 14u;
+    bgc_board won = terminal.board;
+    won.points[0].white = 0u;
+    won.borne_off.white = 15u;
+    bgc_turn_step bearoff = {{BGC_LOCATION_POINT, 0}, {BGC_LOCATION_BORNE_OFF, 0}, 2u, 0};
+    const bgc_candidate played = {&bearoff, 1u};
+    if (expect_status("forced terminal bearoff", bgc_engine_analyze_checker(
+        engine, &terminal, &played, &won, 1u, 5u, &analysis, &error), BGC_STATUS_OK, &error)) {
+        if (!analysis.forced || analysis.no_play || analysis.legal_position_count != 1u ||
+            analysis.equity_loss != 0.0f || fabsf(analysis.candidates[0].equity - 1.0f) > 0.00001f)
+            record_failure("terminal equity", "a forced single win must be +1 with zero loss");
+        if (!bgc_wasm_test_expect_analysis_parity("terminal analysis", engine,
+            &terminal, &played, &won, &analysis)) failures++;
+    }
+    bearoff.die = 1u;
+    expect_status("higher die even with equal final board", bgc_engine_analyze_checker(
+        engine, &terminal, &played, &won, 1u, 5u, &analysis, &error), BGC_STATUS_ILLEGAL_TURN, &error);
+    bearoff.die = 2u;
+    expect_status("mismatched recorded resulting board", bgc_engine_analyze_checker(
+        engine, &terminal, &played, &terminal.board, 1u, 5u, &analysis, &error), BGC_STATUS_ILLEGAL_TURN, &error);
+    expect_status("unsupported analysis depth", bgc_engine_analyze_checker(
+        engine, &terminal, &played, &won, 2u, 5u, &analysis, &error), BGC_STATUS_UNSUPPORTED, &error);
+
+    bgc_position pass = empty_money_position(BGC_PLAYER_WHITE, 1, 2);
+    pass.board.bar.white = 1u;
+    pass.board.points[5].white = 14u;
+    pass.board.points[23].black = pass.board.points[22].black = 2u;
+    pass.board.points[18].black = 11u;
+    const bgc_candidate no_steps = {NULL, 0u};
+    if (expect_status("forced no-play analysis", bgc_engine_analyze_checker(
+        engine, &pass, &no_steps, &pass.board, 1u, 5u, &analysis, &error), BGC_STATUS_OK, &error)) {
+        if (!analysis.forced || !analysis.no_play || analysis.candidate_count != 1u ||
+            analysis.candidates[0].segment_count != 0u || analysis.equity_loss != 0.0f)
+            record_failure("forced pass", "a legal no-play turn must retain the unchanged board");
+        if (!bgc_wasm_test_expect_analysis_parity("forced pass analysis", engine,
+            &pass, &no_steps, &pass.board, &analysis)) failures++;
+    }
+    expect_status("pass with checker steps", bgc_engine_analyze_checker(
+        engine, &pass, &played, &pass.board, 1u, 5u, &analysis, &error), BGC_STATUS_ILLEGAL_TURN, &error);
+
+    bgc_position doubles = starting_position(BGC_PLAYER_WHITE, 6, 6);
+    const bgc_turn_step four[] = {
+        {{BGC_LOCATION_POINT, 12}, {BGC_LOCATION_POINT, 6}, 6u, 0},
+        {{BGC_LOCATION_POINT, 12}, {BGC_LOCATION_POINT, 6}, 6u, 0},
+        {{BGC_LOCATION_POINT, 7}, {BGC_LOCATION_POINT, 1}, 6u, 0},
+        {{BGC_LOCATION_POINT, 7}, {BGC_LOCATION_POINT, 1}, 6u, 0},
+    };
+    const bgc_candidate all_four = {four, 4u};
+    bgc_board after = doubles.board;
+    after.points[12].white -= 2u; after.points[6].white += 2u;
+    after.points[7].white -= 2u; after.points[1].white += 2u;
+    if (expect_status("complete doubles analysis", bgc_engine_analyze_checker(
+        engine, &doubles, &all_four, &after, 1u, 5u, &analysis, &error), BGC_STATUS_OK, &error)) {
+        if (analysis.legal_position_count <= 8u ||
+            analysis.evaluated_position_count != analysis.legal_position_count)
+            record_failure("doubles coverage", "all roots above the gameplay shortlist bound must be evaluated");
+        if (!bgc_wasm_test_expect_analysis_parity("doubles analysis", engine,
+            &doubles, &all_four, &after, &analysis)) failures++;
+    }
+    const bgc_candidate incomplete = {four, 3u};
+    expect_status("incomplete doubles rejected", bgc_engine_analyze_checker(
+        engine, &doubles, &incomplete, &after, 1u, 5u, &analysis, &error), BGC_STATUS_ILLEGAL_TURN, &error);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1079,6 +1249,7 @@ main(int argc, char **argv)
     test_invalid_match_score_rejected(engine);
     test_cube_decisions(engine);
     test_color_reflection_scores(engine);
+    test_checker_analysis(engine);
     expect_status("engine reset", bgc_engine_reset(engine, &error),
                   BGC_STATUS_OK, &error);
 
