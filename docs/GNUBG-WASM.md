@@ -32,6 +32,10 @@ for the separate layouts, capability negotiation, complete legal-root
 evaluation, provenance, and reference checks. Old modules omit the extension
 and continue serving gameplay.
 
+[Quick cube analysis](CUBE-ANALYSIS.md) reuses the frozen native cube result's
+evaluated flag and raw N/T/P equities. It adds no exports or ABI layouts and
+does not change gameplay `decide-cube` results.
+
 The caller provides one four-byte-aligned arena of at most 512 KiB. Typed
 ranges are checked for bounds, overflow, alignment, and overlap. Wire values
 are copied into native structs field by field, and outputs are committed only

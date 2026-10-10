@@ -6,6 +6,7 @@ import {
 import {
   hasBepAnalysisCapability,
   bepCheckerAnalysisMatchesRequest,
+  bepCubeAnalysisMatchesRequest,
   isBepEngineToHostMessage,
   isBepHostToEngineMessage,
 } from "../protocol/validation";
@@ -371,6 +372,12 @@ export class CapsuleController {
     }
     if (request.method === "analyze-checker" && result.method === "analyze-checker") {
       return bepCheckerAnalysisMatchesRequest(request.payload, result.payload) &&
+        result.payload.provenance.engineId === this.metadata?.engineId &&
+        result.payload.provenance.engineVersion === this.metadata?.version &&
+        result.payload.provenance.buildId === this.metadata?.buildId;
+    }
+    if (request.method === "analyze-cube" && result.method === "analyze-cube") {
+      return bepCubeAnalysisMatchesRequest(request.payload, result.payload) &&
         result.payload.provenance.engineId === this.metadata?.engineId &&
         result.payload.provenance.engineVersion === this.metadata?.version &&
         result.payload.provenance.buildId === this.metadata?.buildId;

@@ -77,6 +77,56 @@ dump(const int match_play, const int weak_play)
     return 0;
 }
 
+/* Cube references call upstream directly, using known GNUbg Position IDs.
+ * SetCubeInfo's fMove=0 matches the literal actor row, without capsule mapping. */
+static int
+dump_cube(void)
+{
+    const struct { const char *name, *id; int cube, owner, length, score0, score1, crawford; } cases[] = {
+        {"double-take", "YAH4PwIAAGP2Hw", 1, -1, 0, 0, 0, 0},
+        {"double-pass", "fwDkARwA+BmBHw", 1, -1, 0, 0, 0, 0},
+        {"no-double", "AID3Jw5AAPw/BQ", 1, -1, 0, 0, 0, 0},
+        {"too-good", "APkIwD/YGQD/AA", 1, -1, 0, 0, 0, 0},
+        {"owned-redouble", "fwDkARwA+BmBHw", 2, 0, 0, 0, 0, 0},
+        {"match-5-score-1-3", "YAH4PwIAAGP2Hw", 1, -1, 5, 1, 3, 0},
+        {"match-7-double-take", "YAH4PwIAAGP2Hw", 1, -1, 7, 0, 0, 0},
+        {"match-7-double-pass", "fwDkARwA+BmBHw", 1, -1, 7, 0, 0, 0},
+        {"match-7-too-good", "APkIwD/YGQD/AA", 1, -1, 7, 0, 0, 0},
+        {"post-crawford-trailing", "YAH4PwIAAGP2Hw", 1, -1, 5, 1, 4, 0},
+        {"post-crawford-leading", "YAH4PwIAAGP2Hw", 1, -1, 5, 4, 1, 0},
+        {"crawford", "YAH4PwIAAGP2Hw", 1, -1, 5, 4, 0, 1},
+        {"double-match-point", "YAH4PwIAAGP2Hw", 1, -1, 5, 4, 4, 0},
+    };
+    const evalcontext context = {TRUE, 0, FALSE, TRUE, 0.0f};
+    for (unsigned int index = 0; index < sizeof(cases)/sizeof(cases[0]); index++) {
+        TanBoard board;
+        cubeinfo cube;
+        const int score[2] = {cases[index].score0, cases[index].score1};
+        float outputs[2][NUM_ROLLOUT_OUTPUTS] = {{0}};
+        float equities[NUM_CUBEFUL_OUTPUTS] = {0};
+        if (!PositionFromID(board, cases[index].id) || SetCubeInfo(&cube,
+            cases[index].cube, cases[index].owner, 0, cases[index].length, score,
+            cases[index].crawford, FALSE, FALSE, VARIATION_STANDARD)) return 1;
+        const int available = GetDPEq(NULL, NULL, &cube);
+        cubedecision decision = NOT_AVAILABLE;
+        if (available) {
+            if (GeneralCubeDecisionE(outputs, (ConstTanBoard) board, &cube, &context, NULL)) return 1;
+            decision = FindCubeDecision(equities, outputs, &cube);
+        }
+        printf("{\"name\":\"%s\",\"positionId\":\"%s\",\"cube\":%d,\"owner\":%d,"
+            "\"length\":%d,\"score\":[%d,%d],\"crawford\":%d,\"evaluated\":%s,"
+            "\"decision\":%d,\"optimal\":%.9g,\"noDouble\":%.9g,\"take\":%.9g,\"pass\":%.9g,"
+            "\"actor\":[", cases[index].name, cases[index].id, cases[index].cube, cases[index].owner,
+            cases[index].length, score[0], score[1], cases[index].crawford, available ? "true" : "false",
+            decision, equities[OUTPUT_OPTIMAL], equities[OUTPUT_NODOUBLE], equities[OUTPUT_TAKE], equities[OUTPUT_DROP]);
+        for (unsigned int point = 0; point < 25; point++) printf("%s%u", point ? "," : "", board[1][point]);
+        printf("],\"opponent\":[");
+        for (unsigned int point = 0; point < 25; point++) printf("%s%u", point ? "," : "", board[0][point]);
+        printf("]}\n");
+    }
+    return 0;
+}
+
 int
 main(const int argc, char **argv)
 {
@@ -84,13 +134,13 @@ main(const int argc, char **argv)
     bgc_engine *engine = NULL;
     bgc_error error;
     int status;
-    if (argc != 2) return EXIT_FAILURE;
+    if (argc != 2 && argc != 3) return EXIT_FAILURE;
     if (snprintf(weights, sizeof(weights), "%s/gnubg.weights", argv[1]) >= (int) sizeof(weights) ||
         snprintf(met, sizeof(met), "%s/met/Kazaross-XG2.xml", argv[1]) >= (int) sizeof(met))
         return EXIT_FAILURE;
     if (bgc_engine_create(weights, met, &engine, &error) != BGC_STATUS_OK)
         return EXIT_FAILURE;
-    status = dump(0, 0) || dump(1, 0) || dump(0, 1);
+    status = argc == 3 && !strcmp(argv[2], "--cube") ? dump_cube() : dump(0, 0) || dump(1, 0) || dump(0, 1);
     bgc_engine_dispose(engine);
     return status ? EXIT_FAILURE : EXIT_SUCCESS;
 }

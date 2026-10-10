@@ -215,54 +215,87 @@ async function runRealEngine() {
   const { channel, iframe } = await connect();
 
   const helloResult = await hello(channel.port1, "request:hello");
-  const choose = await request(
-    channel.port1,
-    "request:choose",
-    "choose-turn",
-    {
-      enginePlayer: "white",
-      position: createPosition(
-        "position:checker",
-        "checker-play",
-        startingBoard,
-        [1, 2],
-      ),
-      legalTurns: checkerTurns,
-      settings,
-    },
-  );
+  const choose = await request(channel.port1, "request:choose", "choose-turn", {
+    enginePlayer: "white",
+    position: createPosition(
+      "position:checker",
+      "checker-play",
+      startingBoard,
+      [1, 2],
+    ),
+    legalTurns: checkerTurns,
+    settings,
+  });
   const playedBoard = structuredClone(startingBoard);
   playedBoard.points[7].white -= 1;
   playedBoard.points[4].white += 1;
   const analysisRequest = {
     schemaVersion: 1,
     actor: "white",
-    position: createPosition("position:checker-analysis", "checker-play", startingBoard, [1, 2]),
+    position: createPosition(
+      "position:checker-analysis",
+      "checker-play",
+      startingBoard,
+      [1, 2],
+    ),
     profile: "quick-0ply-v1",
     timeMs: 10_000,
     playedTurn: { steps: checkerTurns[0].steps },
     expectedResultingBoard: playedBoard,
     maxAlternatives: 5,
   };
-  const analysis = await request(channel.port1, "request:analysis", "analyze-checker", analysisRequest);
-  const unsupportedAnalysis = await request(channel.port1, "request:unsupported-analysis", "analyze-checker", {
-    ...analysisRequest, profile: "deep-2ply-v1",
-  });
-  const cube = await request(
+  const analysis = await request(
     channel.port1,
-    "request:cube",
-    "decide-cube",
+    "request:analysis",
+    "analyze-checker",
+    analysisRequest,
+  );
+  const unsupportedAnalysis = await request(
+    channel.port1,
+    "request:unsupported-analysis",
+    "analyze-checker",
     {
-      enginePlayer: "white",
-      position: createPosition(
-        "position:cube",
-        "before-roll",
-        cubeBoard,
-        [],
-      ),
-      phase: "consider-offer",
-      legalDecisions: ["too-good", "no-double", "double"],
-      settings,
+      ...analysisRequest,
+      profile: "deep-2ply-v1",
+    },
+  );
+  const cube = await request(channel.port1, "request:cube", "decide-cube", {
+    enginePlayer: "white",
+    position: createPosition("position:cube", "before-roll", cubeBoard, []),
+    phase: "consider-offer",
+    legalDecisions: ["too-good", "no-double", "double"],
+    settings,
+  });
+
+  const cubeRequest = {
+    schemaVersion: 1,
+    actor: "white",
+    role: "offer",
+    recordedAction: "no-double",
+    position: createPosition(
+      "position:cube-analysis",
+      "before-roll",
+      cubeBoard,
+      [],
+    ),
+    profile: "quick-0ply-v1",
+    timeMs: 10_000,
+  };
+  const cubeAnalysis = await request(
+    channel.port1,
+    "request:cube-analysis",
+    "analyze-cube",
+    cubeRequest,
+  );
+  const responseAnalysis = await request(
+    channel.port1,
+    "request:response-analysis",
+    "analyze-cube",
+    {
+      ...cubeRequest,
+      actor: "black",
+      role: "response",
+      recordedAction: "pass",
     },
   );
 
@@ -286,11 +319,14 @@ async function runRealEngine() {
         startingBoard,
         [3, 3],
       ),
-      playedTurn: { steps: [12, 12, 7, 7].map((point) => ({
-        from: { kind: "point", point },
-        to: { kind: "point", point: point - 3 },
-        die: 3, hit: false,
-      })) },
+      playedTurn: {
+        steps: [12, 12, 7, 7].map((point) => ({
+          from: { kind: "point", point },
+          to: { kind: "point", point: point - 3 },
+          die: 3,
+          hit: false,
+        })),
+      },
       expectedResultingBoard: cancelBoard,
     },
   });
@@ -333,6 +369,8 @@ async function runRealEngine() {
     analysis,
     unsupportedAnalysis,
     cube,
+    cubeAnalysis,
+    responseAnalysis,
     postCancelHello,
     cancelledResultCount: messages.filter(
       (message) => message.requestId === "request:cancelled",

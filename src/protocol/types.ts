@@ -366,6 +366,8 @@ export interface BepAnalyzeCubeResult {
   /** Branch equities retain the offerer's perspective at the pre-offer cube. */
   readonly equityPerspective: Player;
   readonly referenceCube: number;
+  /** GNUbg's verified too-good classification; distinct from ordinary no double. */
+  readonly tooGood?: boolean;
   readonly noDoubleEquity: number;
   readonly doubleTakeEquity: number;
   readonly doublePassEquity: number;

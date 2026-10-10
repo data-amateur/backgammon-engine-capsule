@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
-import type { BepAnalyzeCheckerResult } from "../../src/protocol/types";
+import type {
+  BepAnalyzeCheckerResult,
+  BepAnalyzeCubeResult,
+} from "../../src/protocol/types";
 
 interface EngineMetadata {
   readonly engineId: string;
@@ -23,8 +26,22 @@ interface EngineMetadata {
 }
 
 interface CapsuleTestResults {
-  readonly analysis: { readonly kind: string; readonly payload: BepAnalyzeCheckerResult };
-  readonly unsupportedAnalysis: { readonly kind: string; readonly error: { readonly code: string } };
+  readonly analysis: {
+    readonly kind: string;
+    readonly payload: BepAnalyzeCheckerResult;
+  };
+  readonly cubeAnalysis: {
+    readonly kind: string;
+    readonly payload: BepAnalyzeCubeResult;
+  };
+  readonly responseAnalysis: {
+    readonly kind: string;
+    readonly payload: BepAnalyzeCubeResult;
+  };
+  readonly unsupportedAnalysis: {
+    readonly kind: string;
+    readonly error: { readonly code: string };
+  };
   readonly hello: {
     readonly kind: string;
     readonly payload: {
@@ -134,27 +151,73 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
   });
   expect(results.hello.payload.metadata.buildId).not.toContain("mock");
   expect(results.hello.payload.metadata).toMatchObject({
-    capabilities: { analysis: { schemaVersions: [1], methods: ["analyze-checker"], profiles: ["quick-0ply-v1"] } },
+    capabilities: {
+      analysis: {
+        schemaVersions: [1],
+        methods: ["analyze-checker", "analyze-cube"],
+        profiles: ["quick-0ply-v1"],
+      },
+    },
   });
-  expect(results.analysis.kind, JSON.stringify(results.analysis)).toBe("bep.result");
+  expect(results.analysis.kind, JSON.stringify(results.analysis)).toBe(
+    "bep.result",
+  );
   const checker = results.analysis.payload;
   expect(checker.legalPositionCount).toBe(15);
   expect(checker.evaluatedPositionCount).toBe(15);
   expect(checker.candidates).toHaveLength(6);
-  const played = checker.candidates.find(({ id }) => id === checker.playedCandidateId);
+  const played = checker.candidates.find(
+    ({ id }) => id === checker.playedCandidateId,
+  );
   expect(played?.rank).toBe(11);
   expect(played?.resultingBoard.points[4]?.white).toBe(1);
   expect(checker.candidates[0]?.equity).toBeCloseTo(-0.00775571819, 5);
   expect(played?.equity).toBeCloseTo(-0.127965674, 5);
   expect(checker.equityLoss).toBeCloseTo(0.120209956, 5);
   expect(checker.provenance).toMatchObject({
-    engineId: "gnubg-capsule", engineVersion: "1.08.003",
-    depth: 0, noise: 0, cubeful: true, pruning: false,
-    requestedProfile: "quick-0ply-v1", effectiveProfile: "quick-0ply-v1", completion: "complete",
+    engineId: "gnubg-capsule",
+    engineVersion: "1.08.003",
+    depth: 0,
+    noise: 0,
+    cubeful: true,
+    pruning: false,
+    requestedProfile: "quick-0ply-v1",
+    effectiveProfile: "quick-0ply-v1",
+    completion: "complete",
   });
   expect(checker.provenance.assetsId).toMatch(/^sha256-[0-9a-f]{64}$/);
-  expect(checker.provenance.buildId).toBe(results.hello.payload.metadata.buildId);
-  expect(results.unsupportedAnalysis).toMatchObject({ kind: "bep.error", error: { code: "unsupported" } });
+  expect(checker.provenance.buildId).toBe(
+    results.hello.payload.metadata.buildId,
+  );
+  // Independent native double/take fixture, including a wrong responder pass.
+  for (const message of [results.cubeAnalysis, results.responseAnalysis]) {
+    expect(message.kind, JSON.stringify(message)).toBe("bep.result");
+    expect(message.payload.noDoubleEquity).toBeCloseTo(0.796325445, 5);
+    expect(message.payload.doubleTakeEquity).toBeCloseTo(0.885209322, 5);
+    expect(message.payload.doublePassEquity).toBe(1);
+    expect(message.payload.referenceCube).toBe(1);
+    expect(message.payload.equityPerspective).toBe("white");
+    expect(message.payload.provenance).toEqual(checker.provenance);
+  }
+  expect(results.cubeAnalysis.payload).toMatchObject({
+    actor: "white",
+    role: "offer",
+    recommendedAction: "double",
+  });
+  expect(results.cubeAnalysis.payload.equityLoss).toBeCloseTo(0.088883877, 5);
+  expect(results.responseAnalysis.payload).toMatchObject({
+    actor: "black",
+    role: "response",
+    recommendedAction: "take",
+  });
+  expect(results.responseAnalysis.payload.equityLoss).toBeCloseTo(
+    0.114790678,
+    5,
+  );
+  expect(results.unsupportedAnalysis).toMatchObject({
+    kind: "bep.error",
+    error: { code: "unsupported" },
+  });
   const sourceUrl = results.hello.payload.metadata.license.sourceUrl;
   expect(sourceUrl).toBeDefined();
   const sourcePath = new URL(sourceUrl!).pathname;
@@ -191,7 +254,9 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
   expect(results.sandbox).toBe("allow-scripts");
   expect(results.sandbox).not.toContain("allow-same-origin");
   expect(results.credentialless).toBe(true);
-  expect(workerUrls.filter((url) => url.startsWith("blob:")).length).toBeGreaterThanOrEqual(2);
+  expect(
+    workerUrls.filter((url) => url.startsWith("blob:")).length,
+  ).toBeGreaterThanOrEqual(2);
   expect(consoleErrors).toEqual([]);
 
   const requestedAssets = [...engineAssetUrls];
@@ -326,7 +391,9 @@ test("recreates a fresh module after a real WASM asset failure", async ({
   });
   expect(failedWasmRequests).toBeGreaterThan(0);
   expect(continuedWasmRequests).toBeGreaterThan(0);
-  expect(workerUrls.filter((url) => url.startsWith("blob:")).length).toBeGreaterThanOrEqual(2);
+  expect(
+    workerUrls.filter((url) => url.startsWith("blob:")).length,
+  ).toBeGreaterThanOrEqual(2);
   expect(results.sandbox).toBe("allow-scripts");
   expect(results.credentialless).toBe(true);
 });
@@ -355,9 +422,7 @@ test("serves the capsule with restrictive security headers", async ({
   expect(scriptSources).toContain("'wasm-unsafe-eval'");
   expect(scriptSources).not.toContain("'unsafe-eval'");
   const body = await response.text();
-  expect(body).toContain(
-    '<meta name="robots" content="noindex, nofollow" />',
-  );
+  expect(body).toContain('<meta name="robots" content="noindex, nofollow" />');
   expect(body).toContain("GNU Backgammon");
   expect(body).not.toContain("GPL-free deterministic mock");
 

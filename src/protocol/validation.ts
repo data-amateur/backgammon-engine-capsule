@@ -590,7 +590,11 @@ export function isBepAnalyzeCheckerRequest(value: unknown): value is BepAnalyzeC
 
 export function isBepAnalyzeCubeRequest(value: unknown): value is BepAnalyzeCubeRequest {
   if (!isRecord(value) || !isAnalysisRequest(value) ||
-    value.position.phase !== "before-roll" || value.position.dice.length !== 0) return false;
+    value.position.phase !== "before-roll" || value.position.dice.length !== 0 ||
+    value.position.board.borneOff.white === 15 || value.position.board.borneOff.black === 15 ||
+    value.position.cube.owner !== null && value.position.cube.owner !== value.position.playerOnRoll ||
+    value.position.match.crawford === "crawford" ||
+    value.position.match.mode === "match" && value.position.match.length === 1) return false;
   return (value.role === "offer" && value.actor === value.position.playerOnRoll &&
     (value.recordedAction === "double" || value.recordedAction === "no-double")) ||
     (value.role === "response" && value.actor !== value.position.playerOnRoll &&
@@ -683,12 +687,44 @@ export function isBepAnalyzeCubeResult(value: unknown): value is BepAnalyzeCubeR
     !isFiniteNumber(value.doublePassEquity) || !isFiniteNumber(value.recordedActionEquity) ||
     !isFiniteNumber(value.equityLoss) || value.equityLoss < 0 ||
     !isFiniteNumber(value.elapsedMs) || value.elapsedMs < 0 ||
+    (value.tooGood !== undefined && typeof value.tooGood !== "boolean") ||
     !isBepAnalysisProvenance(value.provenance)) return false;
+  const offered = Math.min(value.doubleTakeEquity, value.doublePassEquity);
+  const tolerance = BEP_ANALYSIS_LIMITS.equityTolerance;
+  if (value.role === "offer") {
+    const recommended = value.recommendedAction === "double" ? offered : value.noDoubleEquity;
+    if (Math.max(value.noDoubleEquity, offered) - recommended > tolerance ||
+      value.tooGood === true && (value.recommendedAction !== "no-double" ||
+        value.noDoubleEquity <= value.doublePassEquity)) return false;
+  } else {
+    const recommended = value.recommendedAction === "take" ? value.doubleTakeEquity : value.doublePassEquity;
+    if (recommended - offered > tolerance || value.tooGood === true) return false;
+  }
   return value.role === "offer"
     ? value.equityPerspective === value.actor &&
       value.availableActions.includes("double") && value.availableActions.includes("no-double")
     : value.equityPerspective !== value.actor &&
       value.availableActions.includes("take") && value.availableActions.includes("pass");
+}
+
+/** Validate branch values, loss and actor against the common pre-offer context. */
+export function bepCubeAnalysisMatchesRequest(
+  request: BepAnalyzeCubeRequest,
+  result: BepAnalyzeCubeResult,
+): boolean {
+  if (!isBepAnalyzeCubeResult(result) ||
+    result.positionRevision !== request.position.revision || result.actor !== request.actor ||
+    result.role !== request.role || result.equityPerspective !== request.position.playerOnRoll ||
+    result.referenceCube !== request.position.cube.value ||
+    result.provenance.requestedProfile !== request.profile) return false;
+  const offered = Math.min(result.doubleTakeEquity, result.doublePassEquity);
+  const recorded = request.recordedAction === "no-double" ? result.noDoubleEquity :
+    request.recordedAction === "double" ? offered : request.recordedAction === "take" ?
+      result.doubleTakeEquity : result.doublePassEquity;
+  const loss = request.role === "offer" ? Math.max(result.noDoubleEquity, offered) - recorded : recorded - offered;
+  const tolerance = BEP_ANALYSIS_LIMITS.equityTolerance;
+  return Math.abs(recorded - result.recordedActionEquity) <= tolerance &&
+    Math.abs(loss - result.equityLoss) <= tolerance;
 }
 
 /** Correlation and candidate replay checks before a result crosses the capsule boundary. */

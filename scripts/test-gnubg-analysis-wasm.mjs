@@ -71,8 +71,12 @@ function requestFor(actor, fixtureIndex) {
 
 try {
   const hello = engine.hello({ supportedProtocolVersions: [1], host: { name: "Real WASM analysis test", version: "1" } });
-  assert.deepEqual(hello.metadata.capabilities.analysis,
-    { schemaVersions: [1], methods: ["analyze-checker"], profiles: ["quick-0ply-v1"] });
+  const { quickProvenance, ...capabilities } = hello.metadata.capabilities.analysis;
+  assert.equal(quickProvenance.assetsId, assetsId);
+  assert.equal(quickProvenance.weightsSha256, reference.weightsSha256);
+  assert.equal(quickProvenance.matchEquitySha256, reference.matchEquitySha256);
+  assert.deepEqual(capabilities,
+    { schemaVersions: [1], methods: ["analyze-checker", "analyze-cube"], profiles: ["quick-0ply-v1"] });
   for (const actor of ["white", "black"]) {
     for (let index = 0; index < reference.cases.length; index++) {
       const request = requestFor(actor, index);

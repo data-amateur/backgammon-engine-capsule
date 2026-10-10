@@ -29,7 +29,7 @@ Methods are:
 - `decide-cube`: echoes the revision and returns one supplied legal action.
 - `analyze-checker`: optional schema-1 Quick checker analysis, available only
   when `hello.metadata.capabilities.analysis` advertises the method/profile.
-- `analyze-cube`: reserved optional analysis method; currently unsupported.
+- `analyze-cube`: optional schema-1 Quick cube analysis, separately capability-gated.
 
 [Quick checker analysis](CHECKER-ANALYSIS.md) defines its requests, root
 coverage, absolute candidate boards, units, provenance, and additive ABI.
@@ -38,6 +38,10 @@ cubeful 0-ply and returns up to five alternatives plus played. It has no
 implicit fallback to a gameplay strength or deeper profile. Hosts must gate
 each analysis request on schema, method, and profile capability; an absent
 capability leaves ordinary gameplay available.
+
+[Quick cube analysis](CUBE-ANALYSIS.md) defines the common pre-offer board and
+reference cube, offerer-perspective branch equities, responder loss, too-good
+semantics, unavailable evaluation errors and independent reference checks.
 
 Decision results include search statistics. `completed: false` is valid when
 the gameplay engine returns its best legal decision after reaching an internal search

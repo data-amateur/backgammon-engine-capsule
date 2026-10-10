@@ -1067,6 +1067,59 @@ test_color_reflection_scores(bgc_engine *engine)
            white_scores[0].score, white_scores[1].score, white_best);
 }
 
+static void
+test_cube_analysis_references(bgc_engine *engine)
+{
+    /* Independently pinned by the upstream --cube reference dump. */
+    const float expected[][3] = {
+        {0.796325445f, 0.885209322f, 1.0f},
+        {0.903714538f, 1.05011678f, 1.0f},
+        {-0.0101824598f, -0.395585269f, 1.0f},
+        {1.38521028f, 2.33236837f, 1.0f},
+        {0.905058444f, 1.05011678f, 1.0f},
+        {1.07781303f, 2.53214216f, 1.0f},
+        {1.2090404f, 2.49606466f, 1.0f},
+    };
+    const bgc_cube_action offer_actions[] = { BGC_CUBE_ACTION_NO_DOUBLE, BGC_CUBE_ACTION_DOUBLE, BGC_CUBE_ACTION_TOO_GOOD };
+    const bgc_cube_action response_actions[] = { BGC_CUBE_ACTION_TAKE, BGC_CUBE_ACTION_PASS };
+    for (int fixture = 0; fixture < 7; fixture++) {
+        bgc_position original = fixture == 1 || fixture == 4 ? cube_double_pass_position() :
+            fixture == 2 ? cube_no_double_position() : fixture == 3 ? cube_too_good_position() : cube_double_take_position();
+        if (fixture == 4) { original.cube.value = 2; original.cube.owner = BGC_PLAYER_WHITE; original.cube.state = BGC_CUBE_STATE_ACCEPTED; }
+        if (fixture >= 5) {
+            original.match.mode = BGC_MATCH_MODE_MATCH; original.match.length = 5;
+            original.match.score.white = 1; original.match.score.black = fixture == 5 ? 3 : 4;
+            original.match.crawford = fixture == 5 ? BGC_CRAWFORD_NONE : BGC_CRAWFORD_POST;
+        }
+        for (int color = BGC_PLAYER_WHITE; color <= BGC_PLAYER_BLACK; color++) {
+            bgc_position position = color == BGC_PLAYER_WHITE ? original : reflect_position(&original);
+            const bgc_player actor = (bgc_player) color;
+            const bgc_settings settings = {BGC_STRENGTH_EXPERT};
+            bgc_cube_analysis result; bgc_error error;
+            if (!expect_status("Quick cube independent reference", bgc_engine_decide_cube(engine, &position,
+                BGC_CUBE_PHASE_CONSIDER_OFFER, actor, offer_actions, 3, &settings, &result, &error), BGC_STATUS_OK, &error)) continue;
+            if (!result.evaluated) record_failure("Quick cube reference", "an available cube was not evaluated");
+            expect_equity("Quick cube independent N", "N", result.no_double_equity, expected[fixture][0]);
+            expect_equity("Quick cube independent T", "T", result.double_take_equity, expected[fixture][1]);
+            expect_equity("Quick cube independent P", "P", result.double_pass_equity, expected[fixture][2]);
+            expect_equity("Quick cube minimax", "optimal", result.preoffer_optimal_equity,
+                fmaxf(expected[fixture][0], fminf(expected[fixture][1], expected[fixture][2])));
+            const bgc_cube_action best = fixture == 2 ? BGC_CUBE_ACTION_NO_DOUBLE :
+                fixture == 3 || fixture >= 5 ? BGC_CUBE_ACTION_TOO_GOOD : BGC_CUBE_ACTION_DOUBLE;
+            if (result.decision != best) record_failure("Quick cube semantics", "wrong double/no-double/too-good classification");
+            position.cube.state = BGC_CUBE_STATE_OFFERED; position.cube.offered_by = actor;
+            if (!expect_status("Quick response reference cube", bgc_engine_decide_cube(engine, &position,
+                BGC_CUBE_PHASE_RESPOND_TO_OFFER, (bgc_player) !color, response_actions, 2, &settings, &result, &error), BGC_STATUS_OK, &error)) continue;
+            expect_equity("Quick response preserves T", "T", result.double_take_equity, expected[fixture][1]);
+            expect_equity("Quick response preserves P", "P", result.double_pass_equity, expected[fixture][2]);
+            if (result.decision != (expected[fixture][1] <= expected[fixture][2] ? BGC_CUBE_ACTION_TAKE : BGC_CUBE_ACTION_PASS))
+                record_failure("Quick response perspective", "responder must minimize offerer equity");
+            if (!bgc_wasm_test_expect_cube_parity("Quick response native ABI", engine, &position,
+                BGC_CUBE_PHASE_RESPOND_TO_OFFER, (bgc_player) !color, response_actions, 2, &settings, &result)) failures++;
+        }
+    }
+}
+
 static unsigned int
 analysis_actor_count(const bgc_checker_counts counts, const bgc_player actor)
 {
@@ -1330,6 +1383,7 @@ main(int argc, char **argv)
     test_oversize_bearoff_rejected(engine);
     test_invalid_match_score_rejected(engine);
     test_cube_decisions(engine);
+    test_cube_analysis_references(engine);
     test_color_reflection_scores(engine);
     test_checker_analysis(engine);
     test_analysis_bearoff_order(engine);

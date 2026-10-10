@@ -8,6 +8,8 @@ import {
   type BepBoard,
   type BepAnalysisCandidate,
   type BepAnalysisProvenance,
+  type BepAnalyzeCubeRequest,
+  type BepAnalyzeCubeResult,
   type BepAnalyzeCheckerRequest,
   type BepAnalyzeCheckerResult,
   type BepCheckerLocation,
@@ -28,6 +30,8 @@ import {
 import {
   bepAnalysisCandidateId,
   bepCheckerAnalysisMatchesRequest,
+  bepCubeAnalysisMatchesRequest,
+  isBepAnalyzeCubeRequest,
   isBepAnalyzeCheckerRequest,
 } from "../protocol/validation";
 
@@ -255,7 +259,7 @@ export const GNUBG_ENGINE_METADATA: BepEngineMetadata = {
     ],
     analysis: {
       schemaVersions: [BEP_ANALYSIS_SCHEMA_VERSION],
-      methods: ["analyze-checker"],
+      methods: ["analyze-checker", "analyze-cube"],
       profiles: ["quick-0ply-v1"],
     },
   },
@@ -1054,10 +1058,58 @@ export class GnubgEngine {
     };
   }
 
-  public decideCube(
+  public analyzeCube(request: BepAnalyzeCubeRequest, startedAt = performance.now()): BepAnalyzeCubeResult {
+    this.assertUsable();
+    if (!this.analysisAvailable || !this.assetsId)
+      throw engineError("unsupported", "Identified GNUbg analysis is unavailable", false, false);
+    if (!isBepAnalyzeCubeRequest(request))
+      throw engineError("invalid-request", "Cube analysis request is malformed", false, false);
+    if (request.profile !== "quick-0ply-v1" || request.position.rules.jacoby ||
+      request.position.rules.beavers || request.position.rules.raccoons || request.position.rules.automaticDoubles !== 0)
+      throw engineError("unsupported", "Cube analysis supports standard Quick rules only", false, false);
+    // The pinned expert context is exactly {cubeful, 0, no pruning, deterministic, 0 noise}.
+    // Reuse ABI v1's native FindCubeDecision output; no layouts or gameplay contracts change.
+    const response = request.role === "response";
+    const native = this.evaluateCube({
+      position: { ...request.position, phase: response ? "cube-response" : "before-roll",
+        cube: { ...request.position.cube, state: response ? "offered" : request.position.cube.state,
+          offeredBy: response ? request.position.playerOnRoll : null } },
+      phase: response ? "respond-to-offer" : "consider-offer",
+      enginePlayer: request.actor,
+      legalDecisions: response ? ["take", "pass"] : ["no-double", "double", "too-good"],
+      settings: { strength: "expert", limits: { timeMs: request.timeMs, maxDepth: 0 }, randomization: { mode: "deterministic", seed: "quick-0ply-v1", variability: 0 } },
+    }, startedAt);
+    if (!native.evaluated)
+      throw engineError("unsupported", "GNUbg did not evaluate this unavailable or dead cube", false, false);
+    const offered = Math.min(native.take, native.pass);
+    const recorded = request.recordedAction === "no-double" ? native.noDouble :
+      request.recordedAction === "double" ? offered : request.recordedAction === "take" ? native.take : native.pass;
+    const result: BepAnalyzeCubeResult = {
+      schemaVersion: BEP_ANALYSIS_SCHEMA_VERSION,
+      positionRevision: request.position.revision, actor: request.actor, role: request.role,
+      availableActions: response ? ["take", "pass"] : ["no-double", "double"],
+      recommendedAction: response ? (native.take <= native.pass ? "take" : "pass") :
+        (native.noDouble >= offered ? "no-double" : "double"),
+      equityPerspective: request.position.playerOnRoll, referenceCube: request.position.cube.value,
+      tooGood: !response && native.result.decision === "too-good",
+      noDoubleEquity: native.noDouble, doubleTakeEquity: native.take, doublePassEquity: native.pass,
+      recordedActionEquity: recorded,
+      equityLoss: response ? recorded - offered : Math.max(native.noDouble, offered) - recorded,
+      elapsedMs: elapsedSince(startedAt), provenance: this.quickProvenance(),
+    };
+    if (!bepCubeAnalysisMatchesRequest(request, result))
+      this.failIntegrity("GNUbg returned inconsistent cube analysis");
+    return result;
+  }
+
+  public decideCube(request: BepCubeDecisionRequest, startedAt = performance.now()): BepCubeDecisionResult {
+    return this.evaluateCube(request, startedAt).result;
+  }
+
+  private evaluateCube(
     request: BepCubeDecisionRequest,
     startedAt = performance.now(),
-  ): BepCubeDecisionResult {
+  ): { result: BepCubeDecisionResult; evaluated: boolean; noDouble: number; take: number; pass: number } {
     this.assertUsable();
     const count = request.legalDecisions.length;
     if (count < 1 || count > 6) {
@@ -1121,12 +1173,14 @@ export class GnubgEngine {
     }
     this.verifyZeroWords(after, resultOffset + 44, 5, "cube result");
     return {
-      positionRevision: request.position.revision,
-      decision: request.legalDecisions[selectedIndex] as BepCubeDecision,
-      stats: {
-        elapsedMs: elapsedSince(startedAt),
-        depth: search.depth,
-        completed: search.completed,
+      evaluated: evaluated === 1,
+      noDouble: after.getFloat32(resultOffset + 32, true),
+      take: after.getFloat32(resultOffset + 36, true),
+      pass: after.getFloat32(resultOffset + 40, true),
+      result: {
+        positionRevision: request.position.revision,
+        decision: request.legalDecisions[selectedIndex] as BepCubeDecision,
+        stats: { elapsedMs: elapsedSince(startedAt), depth: search.depth, completed: search.completed },
       },
     };
   }

@@ -209,11 +209,9 @@ function runRequest(message: CapsuleWorkerRequest): void {
         };
         break;
       case "analyze-cube":
-        throw new GnubgEngineError({
-          code: "unsupported",
-          message: "This capsule does not advertise cube analysis",
-          retryable: false,
-        }, false);
+        response = { kind: "capsule.worker-result", requestId: message.requestId,
+          method: message.method, payload: activeEngine.analyzeCube(message.payload, startedAt) };
+        break;
     }
     if (
       state === "ready" &&

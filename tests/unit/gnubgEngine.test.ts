@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import type {
+  BepAnalyzeCubeRequest,
   BepAnalyzeCheckerRequest,
   BepChooseTurnRequest,
   BepCubeDecisionRequest,
@@ -922,5 +923,37 @@ describe("GNUbg WebAssembly engine", () => {
       }),
     })).toThrowError(GnubgEngineError);
     engine.dispose();
+  });
+});
+
+const cubeCorpus = JSON.parse(readFileSync(new URL("../fixtures/bep-analysis-v1.json", import.meta.url), "utf8")) as {validHostMessages: {method:string;payload:unknown}[]};
+describe("cube analysis WASM decoding",()=>{
+  it.each(["no-double","double","take","pass"] as const)("exposes native branch equities and correct loss for %s",async action=>{
+    const {engine,module}=await createAnalysisEngine();module.cubeEvaluated=true;
+    module.cubeEquities=[0.6,0.6,0.3,0.6,1];
+    const response=action==="take"||action==="pass";
+    module.cubeSelectedIndex=response?0:1;
+    const request=structuredClone(cubeCorpus.validHostMessages.find(item=>item.method==="analyze-cube")!.payload) as BepAnalyzeCubeRequest;
+    Object.assign(request,{role:response?"response":"offer",actor:response?"black":"white",recordedAction:action});
+    const result=engine.analyzeCube(request);
+    expect(result).toMatchObject({referenceCube:1,equityPerspective:"white",actor:request.actor,
+      noDoubleEquity:expect.closeTo(0.3),doubleTakeEquity:expect.closeTo(0.6),doublePassEquity:1,
+      equityLoss:expect.closeTo(action==="no-double"?0.3:action==="pass"?0.4:0)});
+    expect(snapshotView(module.cubeSnapshot).getUint32(164,true)).toBe(3);
+    engine.dispose();
+  });
+  it("does not publish placeholder equities when native evaluated=false; rejection is recoverable",async()=>{
+    const {engine,module}=await createAnalysisEngine();
+    const request=cubeCorpus.validHostMessages.find(item=>item.method==="analyze-cube")!.payload as BepAnalyzeCubeRequest;
+    expect(()=>engine.analyzeCube(request)).toThrow(/did not evaluate/);
+    module.cubeEvaluated=true;module.cubeEquities=[0.6,0.6,0.3,0.6,1];module.cubeSelectedIndex=1;
+    expect(engine.analyzeCube(request).equityLoss).toBeCloseTo(0.3);engine.dispose();
+  });
+  it("retains native too-good semantics and rejects nonfinite output",async()=>{
+    const {engine,module}=await createAnalysisEngine();
+    const request=cubeCorpus.validHostMessages.find(item=>item.method==="analyze-cube")!.payload as BepAnalyzeCubeRequest;
+    module.cubeEvaluated=true;module.cubeEquities=[1.4,1.4,1.4,2,1];module.cubeSelectedIndex=2;
+    expect(engine.analyzeCube(request)).toMatchObject({tooGood:true,recommendedAction:"no-double",equityLoss:0});
+    module.cubeEquities=[1.4,1.4,NaN,2,1];expect(()=>engine.analyzeCube(request)).toThrow(/cube equities/);engine.dispose();
   });
 });

@@ -278,6 +278,614 @@
         },
         "maxAlternatives": 5
       }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "cube-offer-no-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "cube-offer-no-double",
+          "phase": "before-roll",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "match",
+            "length": 5,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "white",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "role": "offer",
+        "recordedAction": "no-double"
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "cube-offer-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "cube-offer-double",
+          "phase": "before-roll",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "match",
+            "length": 5,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "white",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "role": "offer",
+        "recordedAction": "double"
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "cube-response-take",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "cube-response-take",
+          "phase": "before-roll",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "match",
+            "length": 5,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "black",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "role": "response",
+        "recordedAction": "take"
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.request",
+      "requestId": "cube-response-pass",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "position": {
+          "revision": "cube-response-pass",
+          "phase": "before-roll",
+          "board": {
+            "points": [
+              {
+                "white": 1,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 0
+              },
+              {
+                "white": 0,
+                "black": 1
+              }
+            ],
+            "bar": {
+              "white": 0,
+              "black": 0
+            },
+            "borneOff": {
+              "white": 14,
+              "black": 14
+            }
+          },
+          "playerOnRoll": "white",
+          "dice": [],
+          "cube": {
+            "value": 1,
+            "owner": null,
+            "state": "available",
+            "offeredBy": null
+          },
+          "match": {
+            "mode": "match",
+            "length": 5,
+            "score": {
+              "white": 0,
+              "black": 0
+            },
+            "crawford": "none"
+          },
+          "rules": {
+            "variation": "standard",
+            "jacoby": false,
+            "beavers": false,
+            "raccoons": false,
+            "automaticDoubles": 0
+          }
+        },
+        "actor": "black",
+        "profile": "quick-0ply-v1",
+        "timeMs": 10000,
+        "role": "response",
+        "recordedAction": "pass"
+      }
     }
   ],
   "validEngineMessages": [
@@ -618,6 +1226,250 @@
                 "filterPolicy": "all-unique-root-positions-v1",
                 "completion": "complete"
               }
+            }
+          }
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-offer-no-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-offer-no-double",
+        "actor": "white",
+        "role": "offer",
+        "availableActions": [
+          "no-double",
+          "double"
+        ],
+        "recommendedAction": "double",
+        "equityPerspective": "white",
+        "referenceCube": 1,
+        "tooGood": false,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": 0.6,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 0.3,
+        "equityLoss": 0.3,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-offer-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-offer-double",
+        "actor": "white",
+        "role": "offer",
+        "availableActions": [
+          "no-double",
+          "double"
+        ],
+        "recommendedAction": "double",
+        "equityPerspective": "white",
+        "referenceCube": 1,
+        "tooGood": false,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": 0.6,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 0.6,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-response-take",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-response-take",
+        "actor": "black",
+        "role": "response",
+        "availableActions": [
+          "take",
+          "pass"
+        ],
+        "recommendedAction": "take",
+        "equityPerspective": "white",
+        "referenceCube": 1,
+        "tooGood": false,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": 0.6,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 0.6,
+        "equityLoss": 0,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-response-pass",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-response-pass",
+        "actor": "black",
+        "role": "response",
+        "availableActions": [
+          "take",
+          "pass"
+        ],
+        "recommendedAction": "take",
+        "equityPerspective": "white",
+        "referenceCube": 1,
+        "tooGood": false,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": 0.6,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 1,
+        "equityLoss": 0.4,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "hello-cube",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe"
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker",
+                "analyze-cube"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
             }
           }
         }
@@ -3223,6 +4075,194 @@
               }
             }
           }
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-offer-no-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-offer-no-double",
+        "actor": "white",
+        "role": "offer",
+        "availableActions": [
+          "no-double",
+          "double"
+        ],
+        "recommendedAction": "pass",
+        "equityPerspective": "white",
+        "referenceCube": 1,
+        "tooGood": false,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": 0.6,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 0.3,
+        "equityLoss": 0.3,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-offer-no-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-offer-no-double",
+        "actor": "white",
+        "role": "offer",
+        "availableActions": [
+          "no-double",
+          "double"
+        ],
+        "recommendedAction": "double",
+        "equityPerspective": "white",
+        "referenceCube": 3,
+        "tooGood": false,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": 0.6,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 0.3,
+        "equityLoss": 0.3,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-offer-no-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-offer-no-double",
+        "actor": "white",
+        "role": "offer",
+        "availableActions": [
+          "no-double",
+          "double"
+        ],
+        "recommendedAction": "double",
+        "equityPerspective": "white",
+        "referenceCube": 1,
+        "tooGood": true,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": 0.6,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 0.3,
+        "equityLoss": 0.3,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "cube-offer-no-double",
+      "method": "analyze-cube",
+      "payload": {
+        "schemaVersion": 1,
+        "positionRevision": "cube-offer-no-double",
+        "actor": "white",
+        "role": "offer",
+        "availableActions": [
+          "no-double",
+          "double"
+        ],
+        "recommendedAction": "double",
+        "equityPerspective": "white",
+        "referenceCube": 1,
+        "tooGood": false,
+        "noDoubleEquity": 0.3,
+        "doubleTakeEquity": null,
+        "doublePassEquity": 1,
+        "recordedActionEquity": 0.3,
+        "equityLoss": 0.3,
+        "elapsedMs": 1,
+        "provenance": {
+          "engineId": "gnubg-capsule",
+          "engineVersion": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+          "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+          "matchEquityTableId": "Kazaross-XG2",
+          "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+          "bearoff": "gnubg-heuristic-1.08.003-no-database",
+          "requestedProfile": "quick-0ply-v1",
+          "effectiveProfile": "quick-0ply-v1",
+          "depth": 0,
+          "cubeful": true,
+          "deterministic": true,
+          "noise": 0,
+          "pruning": false,
+          "filterPolicy": "all-unique-root-positions-v1",
+          "completion": "complete"
         }
       }
     }
