@@ -23,7 +23,7 @@ const response = corpus.validEngineMessages[0] as BepResultMessage<"analyze-chec
 describe("shared serialized analysis contract v1", () => {
   it("pins the same corpus used by the application protocol tests", () => {
     expect(createHash("sha256").update(serialized).digest("hex"))
-      .toBe("571e7fecda4656e9b62437fe7fc0b42a05b15da2761fc8d76861f8010ce9939b");
+      .toBe("227c06b416792eca218176bebf2932ed373540b39fd5145874ba46bc8a811fb8");
   });
   it("accepts compatible requests/results and rejects malformed serialized messages", () => {
     for (const message of corpus.validHostMessages) expect(isBepHostToEngineMessage(message)).toBe(true);

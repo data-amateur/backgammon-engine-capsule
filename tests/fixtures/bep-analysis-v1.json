@@ -548,6 +548,80 @@
           }
         }
       }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:hello:new",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe"
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ],
+              "quickProvenance": {
+                "engineId": "gnubg-capsule",
+                "engineVersion": "1.08.003",
+                "buildId": "analysis-fixture-v1",
+                "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+                "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+                "matchEquityTableId": "Kazaross-XG2",
+                "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+                "bearoff": "gnubg-heuristic-1.08.003-no-database",
+                "requestedProfile": "quick-0ply-v1",
+                "effectiveProfile": "quick-0ply-v1",
+                "depth": 0,
+                "cubeful": true,
+                "deterministic": true,
+                "noise": 0,
+                "pruning": false,
+                "filterPolicy": "all-unique-root-positions-v1",
+                "completion": "complete"
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "invalidHostMessages": [
@@ -3075,6 +3149,80 @@
           "pruning": false,
           "filterPolicy": "all-unique-root-positions-v1",
           "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:hello:new",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe"
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ],
+              "quickProvenance": {
+                "engineId": "gnubg-capsule",
+                "engineVersion": "1.08.003",
+                "buildId": "analysis-fixture-v1",
+                "assetsId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+                "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+                "matchEquityTableId": "Kazaross-XG2",
+                "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+                "bearoff": "gnubg-heuristic-1.08.003-no-database",
+                "requestedProfile": "quick-0ply-v1",
+                "effectiveProfile": "quick-0ply-v1",
+                "depth": 2,
+                "cubeful": true,
+                "deterministic": true,
+                "noise": 0,
+                "pruning": false,
+                "filterPolicy": "all-unique-root-positions-v1",
+                "completion": "complete"
+              }
+            }
+          }
         }
       }
     }

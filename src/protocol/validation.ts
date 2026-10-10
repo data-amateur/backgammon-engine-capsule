@@ -544,7 +544,11 @@ function isAnalysisCapabilities(value: unknown): value is BepAnalysisCapabilitie
     new Set(value.methods).size === value.methods.length &&
     Array.isArray(value.profiles) && value.profiles.length > 0 && value.profiles.length <= 2 &&
     value.profiles.every(isBepAnalysisProfile) &&
-    new Set(value.profiles).size === value.profiles.length;
+    new Set(value.profiles).size === value.profiles.length &&
+    (value.quickProvenance === undefined ||
+      (isBepAnalysisProvenance(value.quickProvenance) &&
+        value.quickProvenance.effectiveProfile === "quick-0ply-v1" &&
+        value.profiles.includes("quick-0ply-v1")));
 }
 
 export function hasBepAnalysisCapability(

@@ -368,6 +368,8 @@ describe("analysis WASM decoding", () => {
     expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
       .metadata.capabilities.analysis?.profiles).toEqual(["quick-0ply-v1"]);
     const result = engine.analyzeChecker(terminalRequest);
+    expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
+      .metadata.capabilities.analysis?.quickProvenance).toEqual(result.provenance);
     expect(result).toMatchObject({
       forced: true, noPlay: false, playedLegal: true, equityLoss: 0,
       legalPositionCount: 1, evaluatedPositionCount: 1,

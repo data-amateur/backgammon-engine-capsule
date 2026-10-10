@@ -788,7 +788,19 @@ export class GnubgEngine {
       throw engineError("unsupported", "BEP v1 is not supported by the host", false, false);
     }
     if (this.analysisAvailable && this.assetsId) {
-      return { selectedProtocolVersion: BEP_VERSION, metadata: GNUBG_ENGINE_METADATA };
+      return {
+        selectedProtocolVersion: BEP_VERSION,
+        metadata: {
+          ...GNUBG_ENGINE_METADATA,
+          capabilities: {
+            ...GNUBG_ENGINE_METADATA.capabilities,
+            analysis: {
+              ...GNUBG_ENGINE_METADATA.capabilities.analysis!,
+              quickProvenance: this.quickProvenance(),
+            },
+          },
+        },
+      };
     }
     const capabilities = { ...GNUBG_ENGINE_METADATA.capabilities };
     delete capabilities.analysis;
@@ -996,25 +1008,7 @@ export class GnubgEngine {
         tiedWithBest: tied === 1,
       };
     });
-    const provenance: BepAnalysisProvenance = {
-      engineId: GNUBG_ENGINE_METADATA.engineId,
-      engineVersion: GNUBG_ENGINE_METADATA.version,
-      buildId: GNUBG_ENGINE_METADATA.buildId,
-      assetsId: this.assetsId,
-      weightsSha256: "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
-      matchEquityTableId: "Kazaross-XG2",
-      matchEquitySha256: "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
-      bearoff: "gnubg-heuristic-1.08.003-no-database",
-      requestedProfile: request.profile,
-      effectiveProfile: "quick-0ply-v1",
-      depth: 0,
-      cubeful: true,
-      deterministic: true,
-      noise: 0,
-      pruning: false,
-      filterPolicy: "all-unique-root-positions-v1",
-      completion: "complete",
-    };
+    const provenance = this.quickProvenance();
     const result: BepAnalyzeCheckerResult = {
       schemaVersion: BEP_ANALYSIS_SCHEMA_VERSION,
       positionRevision: request.position.revision,
@@ -1035,6 +1029,29 @@ export class GnubgEngine {
       this.failIntegrity("GNUbg returned inconsistent or uncorrelated checker analysis");
     }
     return result;
+  }
+
+  private quickProvenance(): BepAnalysisProvenance {
+    if (!this.assetsId) throw new Error("GNUbg analysis assets are unavailable");
+    return {
+      engineId: GNUBG_ENGINE_METADATA.engineId,
+      engineVersion: GNUBG_ENGINE_METADATA.version,
+      buildId: GNUBG_ENGINE_METADATA.buildId,
+      assetsId: this.assetsId,
+      weightsSha256: "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+      matchEquityTableId: "Kazaross-XG2",
+      matchEquitySha256: "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+      bearoff: "gnubg-heuristic-1.08.003-no-database",
+      requestedProfile: "quick-0ply-v1",
+      effectiveProfile: "quick-0ply-v1",
+      depth: 0,
+      cubeful: true,
+      deterministic: true,
+      noise: 0,
+      pruning: false,
+      filterPolicy: "all-unique-root-positions-v1",
+      completion: "complete",
+    };
   }
 
   public decideCube(

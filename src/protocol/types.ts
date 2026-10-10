@@ -272,6 +272,8 @@ export interface BepAnalysisCapabilities {
   readonly schemaVersions: readonly (typeof BEP_ANALYSIS_SCHEMA_VERSION)[];
   readonly methods: readonly BepAnalysisMethod[];
   readonly profiles: readonly BepAnalysisProfile[];
+  /** Optional exact Quick identity, available after runtime initialization. */
+  readonly quickProvenance?: BepAnalysisProvenance;
 }
 
 export interface BepAnalysisRequest {
