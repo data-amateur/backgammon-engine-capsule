@@ -11,7 +11,7 @@ analysis descriptor fails startup rather than decoding an unknown layout.
 The application contract lives in `shared/src/engineProtocol.ts` in RollBG;
 this repository mirrors its analysis types and validation in `src/protocol/`.
 Both copies test the same serialized `bep-analysis-v1.json` corpus and pin its
-SHA-256 (`165ea3631b106102b8f8ce778b847ea69cd6d76b378fd1bca88e9a820727dccf`).
+SHA-256 (`9a908e34d16067c08a1050142f901bc58dcede4233533c8a423cba8cdb093a0d`).
 The corpus includes old/new handshakes, a complete terminal bearoff request,
 and malformed requests and responses, plus both cube roles and all four
 recorded actions, plus Deeper requests, results, provenance and root bounds.

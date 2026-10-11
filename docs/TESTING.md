@@ -126,11 +126,13 @@ npm run test:e2e
 The explicit `build:verification` is useful for inspecting `dist/`;
 `test:e2e` also invokes it automatically.
 
-## Remaining test gates
+## Release and physical-device gates
 
-Chromium is the current automated browser baseline. Before broad production
-support, run equivalent suites in Firefox and WebKit, benchmark cold and warm
-startup and decisions on representative slower devices, exercise an exact
-clean-tree production build on the chosen host, and manually test the private
-application across multiple games, timeout/cancellation, external failure, and
-built-in fallback.
+The capsule's own three-test suite uses Chromium. The host analysis/replay
+suites and Stage 6 compatibility/measurement runners also exercise Firefox
+and WebKit with real WASM. This desktop coverage does not establish mobile
+performance. Actual iOS Safari and modest Android Chrome measurements, total
+browser footprint, and the target deployment's production/header checks remain
+release gates. See [release hardening](RELEASE-HARDENING.md) and the host's device
+guide. Analysis reports unsupported capsule capabilities without a gameplay
+fallback; built-in opponent gameplay remains covered separately.

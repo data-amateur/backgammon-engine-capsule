@@ -723,8 +723,16 @@ describe("GNUbg WebAssembly engine", () => {
       },
     };
     const originalBuffer = module.HEAPU8.buffer;
+    const helloRequest = { supportedProtocolVersions: [1] as const, host: { name: "Host", version: "1" } };
+    const initialMemory = engine.hello(helloRequest).metadata.runtime.wasmMemoryBytes;
+    expect(initialMemory).toBe(module.HEAPU8.byteLength);
     const result = engine.chooseTurn(request);
     expect(module.HEAPU8.buffer).not.toBe(originalBuffer);
+    expect(engine.hello(helloRequest).metadata.runtime).toMatchObject({
+      wasmMemoryBytes: module.HEAPU8.byteLength,
+      wasmMemoryLimitBytes: 128 * 1024 * 1024,
+    });
+    expect(module.HEAPU8.byteLength).toBeGreaterThan(initialMemory!);
     expect(result.chosenTurnId).toBe("turn:tie-winner");
     expect(result.rankedTurns).toEqual([
       { turnId: "turn:tie-winner", rank: 1, score: 0.5 },

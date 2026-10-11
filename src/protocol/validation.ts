@@ -889,6 +889,13 @@ const isEngineMetadata = (value: unknown): value is BepEngineMetadata =>
     isNonNegativeInteger(value.runtime.approximateDownloadBytes)) &&
   (value.runtime.approximateMemoryBytes === undefined ||
     isNonNegativeInteger(value.runtime.approximateMemoryBytes)) &&
+  (value.runtime.wasmMemoryBytes === undefined ||
+    isPositiveInteger(value.runtime.wasmMemoryBytes)) &&
+  (value.runtime.wasmMemoryLimitBytes === undefined ||
+    isPositiveInteger(value.runtime.wasmMemoryLimitBytes)) &&
+  (value.runtime.wasmMemoryBytes === undefined ||
+    value.runtime.wasmMemoryLimitBytes === undefined ||
+    value.runtime.wasmMemoryBytes <= value.runtime.wasmMemoryLimitBytes) &&
   isEngineCapabilities(value.capabilities);
 
 const isHelloResult = (value: unknown): value is BepHelloResult =>

@@ -21,6 +21,8 @@ interface EngineMetadata {
     readonly transport: string;
     readonly approximateDownloadBytes?: number;
     readonly approximateMemoryBytes?: number;
+    readonly wasmMemoryBytes?: number;
+    readonly wasmMemoryLimitBytes?: number;
   };
   readonly capabilities: {
     readonly moveRanking: boolean;
@@ -323,6 +325,11 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
   expect(
     results.hello.payload.metadata.runtime.approximateMemoryBytes,
   ).toBeGreaterThanOrEqual(32 * 1024 * 1024);
+  expect(results.hello.payload.metadata.runtime.wasmMemoryBytes).toBeGreaterThan(0);
+  expect(results.hello.payload.metadata.runtime.wasmMemoryLimitBytes).toBe(128 * 1024 * 1024);
+  expect(results.hello.payload.metadata.runtime.wasmMemoryBytes).toBeLessThanOrEqual(
+    results.hello.payload.metadata.runtime.wasmMemoryLimitBytes!,
+  );
 
   // These exact fixtures are shared with the native/Node GNUbg goldens. The
   // preferred turn and cube action are deliberately not first, so the old

@@ -180,6 +180,9 @@ export interface BepEngineRuntime {
   readonly transport: "worker" | "iframe" | "http";
   readonly approximateDownloadBytes?: number;
   readonly approximateMemoryBytes?: number;
+  /** Allocated linear memory sampled at hello; excludes browser/JS overhead. */
+  readonly wasmMemoryBytes?: number;
+  readonly wasmMemoryLimitBytes?: number;
 }
 
 export interface BepEngineMetadata {

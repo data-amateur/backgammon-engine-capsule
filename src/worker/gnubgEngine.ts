@@ -791,11 +791,17 @@ export class GnubgEngine {
     if (!request.supportedProtocolVersions.includes(BEP_VERSION)) {
       throw engineError("unsupported", "BEP v1 is not supported by the host", false, false);
     }
+    const runtime = {
+      ...GNUBG_ENGINE_METADATA.runtime,
+      wasmMemoryBytes: this.module.HEAPU8.byteLength,
+      wasmMemoryLimitBytes: GNUBG_WASM_MAX_MEMORY_MB * 1024 * 1024,
+    };
     if (this.analysisAvailable && this.assetsId) {
       return {
         selectedProtocolVersion: BEP_VERSION,
         metadata: {
           ...GNUBG_ENGINE_METADATA,
+          runtime,
           capabilities: {
             ...GNUBG_ENGINE_METADATA.capabilities,
             analysis: {
@@ -811,7 +817,7 @@ export class GnubgEngine {
     delete capabilities.analysis;
     return {
       selectedProtocolVersion: BEP_VERSION,
-      metadata: { ...GNUBG_ENGINE_METADATA, capabilities },
+      metadata: { ...GNUBG_ENGINE_METADATA, runtime, capabilities },
     };
   }
 

@@ -32,7 +32,7 @@ const response = corpus
 describe("shared serialized analysis contract v1", () => {
   it("pins the same corpus used by the application protocol tests", () => {
     expect(createHash("sha256").update(serialized).digest("hex")).toBe(
-      "165ea3631b106102b8f8ce778b847ea69cd6d76b378fd1bca88e9a820727dccf",
+      "9a908e34d16067c08a1050142f901bc58dcede4233533c8a423cba8cdb093a0d",
     );
   });
   it("accepts compatible requests/results and rejects malformed serialized messages", () => {

@@ -2811,6 +2811,63 @@
           }
         }
       }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:memory",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe",
+            "wasmMemoryBytes": 33554432,
+            "wasmMemoryLimitBytes": 134217728
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
+            }
+          }
+        }
+      }
     }
   ],
   "invalidHostMessages": [
@@ -6614,6 +6671,291 @@
           "pruning": true,
           "filterPolicy": "quick-top2-window160-max8-plus-played-v1",
           "completion": "complete"
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:memory",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe",
+            "wasmMemoryBytes": 0,
+            "wasmMemoryLimitBytes": 134217728
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:memory",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe",
+            "wasmMemoryBytes": 134217729,
+            "wasmMemoryLimitBytes": 134217728
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:memory",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe",
+            "wasmMemoryBytes": 33554432,
+            "wasmMemoryLimitBytes": -1
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:memory",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe",
+            "wasmMemoryBytes": 1.5,
+            "wasmMemoryLimitBytes": 134217728
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "protocol": "backgammon-engine-protocol",
+      "version": 1,
+      "sessionNonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "bep.result",
+      "requestId": "request:memory",
+      "method": "hello",
+      "payload": {
+        "selectedProtocolVersion": 1,
+        "metadata": {
+          "engineId": "gnubg-capsule",
+          "name": "GNU Backgammon",
+          "version": "1.08.003",
+          "buildId": "analysis-fixture-v1",
+          "protocolVersions": [
+            1
+          ],
+          "license": {
+            "spdxId": "GPL-3.0-or-later"
+          },
+          "runtime": {
+            "transport": "iframe",
+            "wasmMemoryBytes": 33554432,
+            "wasmMemoryLimitBytes": "128"
+          },
+          "capabilities": {
+            "chooseTurn": true,
+            "cubeOffer": true,
+            "cubeResponse": true,
+            "positionEvaluation": false,
+            "moveRanking": true,
+            "rollout": false,
+            "matchPlay": true,
+            "moneyPlay": true,
+            "cancellation": true,
+            "deterministic": true,
+            "variations": [
+              "standard"
+            ],
+            "strengthPresets": [
+              "expert"
+            ],
+            "analysis": {
+              "schemaVersions": [
+                1
+              ],
+              "methods": [
+                "analyze-checker"
+              ],
+              "profiles": [
+                "quick-0ply-v1"
+              ]
+            }
+          }
         }
       }
     }
