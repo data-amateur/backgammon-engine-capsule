@@ -50,6 +50,16 @@ int bgc_wasm_test_expect_analysis_parity(
     const bgc_checker_analysis *direct
 );
 
+int bgc_wasm_test_expect_analysis_profile_parity(
+    const char *test,
+    bgc_engine *engine,
+    const bgc_position *position,
+    const bgc_candidate *played,
+    const bgc_board *expected_board,
+    const bgc_checker_analysis *direct,
+    uint32_t profile
+);
+
 int bgc_wasm_test_expect_cube_parity(
     const char *test,
     bgc_engine *engine,

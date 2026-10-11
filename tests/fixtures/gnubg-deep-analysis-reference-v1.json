@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 1,
+  "source": "gnubg_analysis_reference_dump.c --deep: direct upstream GNUbg, literal boards/cubeinfo; never calls capsule analyze functions",
+  "engineVersion": "1.08.003",
+  "sourceArchiveSha256": "6f7d969b13cfff786fba90ff8cc5e5d564b97f4f0aa69afe4f3838f18c445979",
+  "weightsSha256": "d03c629d8b916236ce6eee05d891986830ec943fce6febd4e5b6725b284c66ee",
+  "matchEquityTableId": "Kazaross-XG2",
+  "matchEquitySha256": "7a232b171744b8db34306d11cff79a5974541328bb033b6bf16c012e8f7a3cc3",
+  "settings": {
+    "depth": 2,
+    "cubeful": true,
+    "pruning": true,
+    "deterministic": true,
+    "noise": 0,
+    "bearoff": "GNUbg one-sided heuristic; no exact database"
+  },
+  "tolerance": 1e-05,
+  "cases": [
+    {
+      "context": "money-centered-cube-1",
+      "profile": "deep-2ply-v1",
+      "legalPositionCount": 15,
+      "evaluatedPositionCount": 8,
+      "bestEquity": 0.00198016479,
+      "playedEquity": -0.0250966046,
+      "equityLoss": 0.0270767694,
+      "playedRank": 3,
+      "bestPositionId": "4HPwATDgc+QBKA",
+      "roots": [
+        {
+          "positionId": "4HPwATDgc/ABFA",
+          "quickRank": 4,
+          "quickEquity": -0.037103869,
+          "equity": -0.0562371947
+        },
+        {
+          "positionId": "4HPwATDgc/ABIg",
+          "quickRank": 2,
+          "quickEquity": -0.0221467316,
+          "equity": -0.0250966046
+        },
+        {
+          "positionId": "4HPwATDgc+QBKA",
+          "quickRank": 1,
+          "quickEquity": -0.00775571819,
+          "equity": 0.00198016479
+        },
+        {
+          "positionId": "4HPwATDIc/ABKA",
+          "quickRank": 7,
+          "quickEquity": -0.0983202904,
+          "equity": -0.0965215489
+        },
+        {
+          "positionId": "4HPwATDga+QBMA",
+          "quickRank": 8,
+          "quickEquity": -0.113349125,
+          "equity": -0.119436063
+        },
+        {
+          "positionId": "4HPwATDQc/ABJA",
+          "quickRank": 6,
+          "quickEquity": -0.0658655539,
+          "equity": -0.0710842907
+        },
+        {
+          "positionId": "4HPwATDQc+QBMA",
+          "quickRank": 5,
+          "quickEquity": -0.0481781885,
+          "equity": -0.00238219392
+        },
+        {
+          "positionId": "4HPwATDgc+IBMA",
+          "quickRank": 3,
+          "quickEquity": -0.0358602852,
+          "equity": -0.0372664742
+        }
+      ],
+      "bestOpponent": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0
+      ],
+      "bestActor": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        3,
+        0,
+        0,
+        1,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+      ]
+    },
+    {
+      "context": "match-5-score-1-3-cube-2-white-owned",
+      "profile": "deep-2ply-v1",
+      "legalPositionCount": 15,
+      "evaluatedPositionCount": 8,
+      "bestEquity": 0.939482212,
+      "playedEquity": 0.931075573,
+      "equityLoss": 0.0084066391,
+      "playedRank": 2,
+      "bestPositionId": "4HPwATDgc+QBKA",
+      "roots": [
+        {
+          "positionId": "4HPwATDgc/ABFA",
+          "quickRank": 4,
+          "quickEquity": 0.795588255,
+          "equity": 0.920704842
+        },
+        {
+          "positionId": "4HPwATDgc/ABIg",
+          "quickRank": 2,
+          "quickEquity": 0.806735754,
+          "equity": 0.931075573
+        },
+        {
+          "positionId": "4HPwATDgc+QBKA",
+          "quickRank": 1,
+          "quickEquity": 0.821909428,
+          "equity": 0.939482212
+        },
+        {
+          "positionId": "4HPwATDIc/ABKA",
+          "quickRank": 7,
+          "quickEquity": 0.752950668,
+          "equity": 0.888952017
+        },
+        {
+          "positionId": "4HPwATDga+QBMA",
+          "quickRank": 8,
+          "quickEquity": 0.730025768,
+          "equity": 0.854254723
+        },
+        {
+          "positionId": "4HPwATDQc/ABJA",
+          "quickRank": 6,
+          "quickEquity": 0.781850338,
+          "equity": 0.880716085
+        },
+        {
+          "positionId": "4HPwATDQc+QBMA",
+          "quickRank": 3,
+          "quickEquity": 0.795902252,
+          "equity": 0.903997898
+        },
+        {
+          "positionId": "4HPwATDgc+IBMA",
+          "quickRank": 5,
+          "quickEquity": 0.791282654,
+          "equity": 0.914553642
+        }
+      ],
+      "bestOpponent": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0
+      ],
+      "bestActor": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        3,
+        0,
+        0,
+        1,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+      ]
+    },
+    {
+      "context": "money-centered-cube-1-played-8-to-5",
+      "profile": "deep-2ply-v1",
+      "legalPositionCount": 15,
+      "evaluatedPositionCount": 9,
+      "bestEquity": 0.00198016479,
+      "playedEquity": -0.123625569,
+      "equityLoss": 0.125605734,
+      "playedRank": 9,
+      "bestPositionId": "4HPwATDgc+QBKA",
+      "roots": [
+        {
+          "positionId": "4HPwATDgc/ABFA",
+          "quickRank": 4,
+          "quickEquity": -0.037103869,
+          "equity": -0.0562371947
+        },
+        {
+          "positionId": "4HPwATDgc/ABIg",
+          "quickRank": 2,
+          "quickEquity": -0.0221467316,
+          "equity": -0.0250966046
+        },
+        {
+          "positionId": "4HPwATDgc+QBKA",
+          "quickRank": 1,
+          "quickEquity": -0.00775571819,
+          "equity": 0.00198016479
+        },
+        {
+          "positionId": "4HPwATDIc/ABKA",
+          "quickRank": 7,
+          "quickEquity": -0.0983202904,
+          "equity": -0.0965215489
+        },
+        {
+          "positionId": "4HPwATDga+QBMA",
+          "quickRank": 8,
+          "quickEquity": -0.113349125,
+          "equity": -0.119436063
+        },
+        {
+          "positionId": "4HPwATDQZ/ABMA",
+          "quickRank": 11,
+          "quickEquity": -0.127965674,
+          "equity": -0.123625569
+        },
+        {
+          "positionId": "4HPwATDQc/ABJA",
+          "quickRank": 6,
+          "quickEquity": -0.0658655539,
+          "equity": -0.0710842907
+        },
+        {
+          "positionId": "4HPwATDQc+QBMA",
+          "quickRank": 5,
+          "quickEquity": -0.0481781885,
+          "equity": -0.00238219392
+        },
+        {
+          "positionId": "4HPwATDgc+IBMA",
+          "quickRank": 3,
+          "quickEquity": -0.0358602852,
+          "equity": -0.0372664742
+        }
+      ],
+      "bestOpponent": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0
+      ],
+      "bestActor": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        3,
+        0,
+        0,
+        1,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+      ]
+    }
+  ],
+  "terminal": {
+    "description": "one checker at absolute point 0, both players have 14 off; higher die 2 must bear off",
+    "equity": 1,
+    "equityLoss": 0,
+    "legalPositionCount": 1
+  },
+  "profile": "deep-2ply-v1",
+  "filterPolicy": "quick-top2-window160-max8-plus-played-v1"
+}

@@ -1,9 +1,11 @@
-# Quick cube analysis, schema 1
+# Cube analysis, schema 1
 
 Stage 4 adds `analyze-cube` beside `analyze-checker` in the optional BEP v1
 analysis capability. Both use `quick-0ply-v1`: cubeful, deterministic, depth 0,
 no pruning, and zero noise. The pinned GNUbg expert evaluation context supplies
 these exact settings. Gameplay methods and the native/wasm32 ABI remain unchanged.
+
+[Stage 5](DEEPER-ANALYSIS.md) also advertises `deep-2ply-v1`: the same pre-offer context and branches at deterministic cubeful depth 2, with zero noise and internal pruning enabled.
 
 ## Request context
 
@@ -90,6 +92,5 @@ npm run test:gnubg-wasm
 npm run test:e2e
 ```
 
-Selected-decision deeper analysis and measured device performance remain later
-stages. Cube counts and losses do not define a standardized average cube error
+Selected-decision Deeper is Stage 5; measured device performance remains Stage 6. Cube counts and losses do not define a standardized average cube error
 or combined performance rating.

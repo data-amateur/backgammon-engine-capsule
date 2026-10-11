@@ -548,7 +548,11 @@ function isAnalysisCapabilities(value: unknown): value is BepAnalysisCapabilitie
     (value.quickProvenance === undefined ||
       (isBepAnalysisProvenance(value.quickProvenance) &&
         value.quickProvenance.effectiveProfile === "quick-0ply-v1" &&
-        value.profiles.includes("quick-0ply-v1")));
+        value.profiles.includes("quick-0ply-v1"))) &&
+    (value.deepProvenance === undefined ||
+      (isBepAnalysisProvenance(value.deepProvenance) &&
+        value.deepProvenance.effectiveProfile === "deep-2ply-v1" &&
+        value.profiles.includes("deep-2ply-v1")));
 }
 
 export function hasBepAnalysisCapability(
@@ -622,7 +626,7 @@ export function isBepAnalysisProvenance(value: unknown): value is BepAnalysisPro
     value.completion !== "complete") return false;
   return value.effectiveProfile === "quick-0ply-v1"
     ? value.depth === 0 && value.pruning === false && value.filterPolicy === "all-unique-root-positions-v1"
-    : value.depth === 2 && typeof value.pruning === "boolean" &&
+    : value.depth === 2 && value.pruning === true &&
       value.filterPolicy === "quick-top2-window160-max8-plus-played-v1";
 }
 
@@ -672,7 +676,10 @@ export function isBepAnalyzeCheckerResult(value: unknown): value is BepAnalyzeCh
     (!result.noPlay || (result.forced && result.candidates[0]!.segments.length === 0)) &&
     (result.noPlay || result.candidates.every(({ segments }) => segments.length > 0)) &&
     (result.provenance.effectiveProfile !== "quick-0ply-v1" ||
-      result.evaluatedPositionCount === result.legalPositionCount);
+      result.evaluatedPositionCount === result.legalPositionCount) &&
+    (result.provenance.effectiveProfile !== "deep-2ply-v1" ||
+      (result.evaluatedPositionCount >= Math.min(2, result.legalPositionCount) &&
+       result.evaluatedPositionCount <= BEP_ANALYSIS_LIMITS.maxDeepRootPositions));
 }
 
 export function isBepAnalyzeCubeResult(value: unknown): value is BepAnalyzeCubeResult {

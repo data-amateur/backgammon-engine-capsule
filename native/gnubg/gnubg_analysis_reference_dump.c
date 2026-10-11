@@ -16,7 +16,7 @@
 #include <string.h>
 
 static int
-dump(const int match_play, const int weak_play)
+dump(const int match_play, const int weak_play, const int deep)
 {
     TanBoard board = {{0}};
     TanBoard played_board;
@@ -27,7 +27,10 @@ dump(const int match_play, const int weak_play)
     positionkey played_key;
     move *owned;
     float best = -INFINITY, played = -INFINITY;
-    unsigned int index, best_index = 0, played_rank = 1;
+    unsigned int index, best_index = 0, played_rank = 1, evaluated = 0;
+    unsigned int ranks[BGC_MAX_CANDIDATES] = {0};
+    int selected[BGC_MAX_CANDIDATES] = {0};
+    float quick[BGC_MAX_CANDIDATES] = {0};
     /* Both rows use their own home-relative coordinates; no adapter mapping. */
     for (index = 0; index < 2; index++) {
         board[index][23] = 2;
@@ -57,15 +60,51 @@ dump(const int match_play, const int weak_play)
         }
         if (EqualKeys(played_key, owned[index].key)) played = owned[index].rScore;
     }
-    for (index = 0; index < generated.cMoves; index++)
+    /* Pairwise ranks keep selection independent of analyzer sorting/compaction. */
+    for (index = 0; index < generated.cMoves; index++) {
+        ranks[index] = 1;
+        quick[index] = owned[index].rScore;
+        for (unsigned int other = 0; other < generated.cMoves; other++)
+            if (owned[other].rScore > owned[index].rScore ||
+                (owned[other].rScore == owned[index].rScore &&
+                 (owned[other].rScore2 > owned[index].rScore2 ||
+                  (owned[other].rScore2 == owned[index].rScore2 &&
+                   memcmp(&owned[other].key, &owned[index].key, sizeof(positionkey)) < 0))))
+                ranks[index]++;
+        selected[index] = !deep || ranks[index] <= 2 ||
+            (ranks[index] <= 8 && (double) best - owned[index].rScore <= 0.160) ||
+            EqualKeys(played_key, owned[index].key);
+    }
+    if (deep) {
+        const evalcontext deeper = {TRUE, 2, TRUE, TRUE, 0.0f};
+        best = played = -INFINITY;
+        for (index = 0; index < generated.cMoves; index++) {
+            if (!selected[index]) continue;
+            if (ScoreMove(NULL, &owned[index], &cube, &deeper, 2)) { free(owned); return 1; }
+            if (owned[index].rScore > best) { best = owned[index].rScore; best_index = index; }
+            if (EqualKeys(played_key, owned[index].key)) played = owned[index].rScore;
+        }
+    }
+    for (index = 0; index < generated.cMoves; index++) {
+        if (!selected[index]) continue;
+        evaluated++;
         if (owned[index].rScore > played) played_rank++;
-    printf("{\"context\":\"%s\",\"legalPositionCount\":%u,"
-           "\"bestEquity\":%.9g,\"playedEquity\":%.9g,"
-           "\"equityLoss\":%.9g,\"playedRank\":%u,\"bestPositionId\":\"%s\",",
+    }
+    printf("{\"context\":\"%s\",\"profile\":\"%s\",\"legalPositionCount\":%u,"
+           "\"evaluatedPositionCount\":%u,\"bestEquity\":%.9g,\"playedEquity\":%.9g,"
+           "\"equityLoss\":%.9g,\"playedRank\":%u,\"bestPositionId\":\"%s\",\"roots\":[",
            match_play ? "match-5-score-1-3-cube-2-white-owned" :
                weak_play ? "money-centered-cube-1-played-8-to-5" : "money-centered-cube-1",
-           generated.cMoves, best, played, (double) best - played, played_rank,
+           deep ? "deep-2ply-v1" : "quick-0ply-v1", generated.cMoves, evaluated,
+           best, played, (double) best - played, played_rank,
            PositionIDFromKey(&owned[best_index].key));
+    unsigned int printed = 0;
+    for (index = 0; index < generated.cMoves; index++) {
+        if (!selected[index]) continue;
+        printf("%s{\"positionId\":\"%s\",\"quickRank\":%u,\"quickEquity\":%.9g,\"equity\":%.9g}",
+            printed++ ? "," : "", PositionIDFromKey(&owned[index].key), ranks[index], quick[index], owned[index].rScore);
+    }
+    printf("],");
     PositionFromKey(board, &owned[best_index].key);
     for (unsigned int row = 0; row < 2; row++) {
         printf("\"%s\":[", row ? "bestActor" : "bestOpponent");
@@ -80,7 +119,7 @@ dump(const int match_play, const int weak_play)
 /* Cube references call upstream directly, using known GNUbg Position IDs.
  * SetCubeInfo's fMove=0 matches the literal actor row, without capsule mapping. */
 static int
-dump_cube(void)
+dump_cube(const int deep)
 {
     const struct { const char *name, *id; int cube, owner, length, score0, score1, crawford; } cases[] = {
         {"double-take", "YAH4PwIAAGP2Hw", 1, -1, 0, 0, 0, 0},
@@ -97,7 +136,7 @@ dump_cube(void)
         {"crawford", "YAH4PwIAAGP2Hw", 1, -1, 5, 4, 0, 1},
         {"double-match-point", "YAH4PwIAAGP2Hw", 1, -1, 5, 4, 4, 0},
     };
-    const evalcontext context = {TRUE, 0, FALSE, TRUE, 0.0f};
+    const evalcontext context = {TRUE, deep ? 2u : 0u, deep ? TRUE : FALSE, TRUE, 0.0f};
     for (unsigned int index = 0; index < sizeof(cases)/sizeof(cases[0]); index++) {
         TanBoard board;
         cubeinfo cube;
@@ -140,7 +179,9 @@ main(const int argc, char **argv)
         return EXIT_FAILURE;
     if (bgc_engine_create(weights, met, &engine, &error) != BGC_STATUS_OK)
         return EXIT_FAILURE;
-    status = argc == 3 && !strcmp(argv[2], "--cube") ? dump_cube() : dump(0, 0) || dump(1, 0) || dump(0, 1);
+    const int deep = argc == 3 && (!strcmp(argv[2], "--deep") || !strcmp(argv[2], "--cube-deep"));
+    status = argc == 3 && (!strcmp(argv[2], "--cube") || !strcmp(argv[2], "--cube-deep"))
+        ? dump_cube(deep) : dump(0, 0, deep) || dump(1, 0, deep) || dump(0, 1, deep);
     bgc_engine_dispose(engine);
     return status ? EXIT_FAILURE : EXIT_SUCCESS;
 }

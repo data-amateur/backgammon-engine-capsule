@@ -32,7 +32,7 @@ const response = corpus
 describe("shared serialized analysis contract v1", () => {
   it("pins the same corpus used by the application protocol tests", () => {
     expect(createHash("sha256").update(serialized).digest("hex")).toBe(
-      "9087a625e41a791ededee471b4f24d460a3d15a62cbe40615ae9ec0c167ab982",
+      "165ea3631b106102b8f8ce778b847ea69cd6d76b378fd1bca88e9a820727dccf",
     );
   });
   it("accepts compatible requests/results and rejects malformed serialized messages", () => {
@@ -132,13 +132,8 @@ describe("shared serialized analysis contract v1", () => {
     );
   });
   it("correlates both cube roles and all recorded actions to the pre-offer reference", () => {
-    const requests = corpus.validHostMessages.slice(
-      1,
-    ) as BepRequestMessage<"analyze-cube">[];
-    const results = corpus.validEngineMessages.slice(
-      4,
-      8,
-    ) as BepResultMessage<"analyze-cube">[];
+    const requests = corpus.validHostMessages.filter((message) => (message as BepRequestMessage).method === "analyze-cube") as BepRequestMessage<"analyze-cube">[];
+    const results = corpus.validEngineMessages.filter((message) => (message as BepResultMessage).method === "analyze-cube") as BepResultMessage<"analyze-cube">[];
     requests.forEach(({ payload: cube }, index) => {
       const result = results[index]!.payload;
       expect(bepCubeAnalysisMatchesRequest(cube, result)).toBe(true);

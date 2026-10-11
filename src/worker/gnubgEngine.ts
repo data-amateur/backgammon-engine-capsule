@@ -260,7 +260,7 @@ export const GNUBG_ENGINE_METADATA: BepEngineMetadata = {
     analysis: {
       schemaVersions: [BEP_ANALYSIS_SCHEMA_VERSION],
       methods: ["analyze-checker", "analyze-cube"],
-      profiles: ["quick-0ply-v1"],
+      profiles: ["quick-0ply-v1", "deep-2ply-v1"],
     },
   },
 };
@@ -801,6 +801,7 @@ export class GnubgEngine {
             analysis: {
               ...GNUBG_ENGINE_METADATA.capabilities.analysis!,
               quickProvenance: this.quickProvenance(),
+              deepProvenance: this.deepProvenance(),
             },
           },
         },
@@ -933,9 +934,7 @@ export class GnubgEngine {
     if (!isBepAnalyzeCheckerRequest(request)) {
       throw engineError("invalid-request", "Checker analysis request is malformed", false, false);
     }
-    if (request.profile !== "quick-0ply-v1") {
-      throw engineError("unsupported", "This GNUbg build supports Quick 0-ply analysis only", false, false);
-    }
+    const deep = request.profile === "deep-2ply-v1";
     const candidatesOffset = ANALYSIS_REQUEST_SIZE;
     const capacity = request.maxAlternatives + 1;
     const resultOffset = candidatesOffset + capacity * ANALYSIS_CANDIDATE_SIZE;
@@ -955,7 +954,7 @@ export class GnubgEngine {
       before.setUint32(offset + 20, step.hit ? 1 : 0, true);
     });
     writeBoard(before, 232, request.expectedResultingBoard);
-    before.setUint32(284, 1, true);
+    before.setUint32(284, deep ? 2 : 1, true);
     before.setUint32(288, request.maxAlternatives, true);
     before.setUint32(292, candidatesOffset, true);
     before.setUint32(296, capacity, true);
@@ -980,14 +979,14 @@ export class GnubgEngine {
     const forced = after.getUint32(resultOffset + 24, true);
     const noPlay = after.getUint32(resultOffset + 28, true);
     if (count < 1 || count > capacity || playedIndex >= count || forced > 1 || noPlay > 1 ||
-      after.getUint32(resultOffset + 36, true) !== 0 ||
+      after.getUint32(resultOffset + 36, true) !== (deep ? 2 : 0) ||
       after.getUint32(resultOffset + 40, true) !== 1 ||
       after.getUint32(resultOffset + 44, true) !== 1 ||
       after.getFloat32(resultOffset + 48, true) !== 0 ||
-      after.getUint32(resultOffset + 52, true) !== 0 ||
-      after.getUint32(resultOffset + 56, true) !== 1 ||
+      after.getUint32(resultOffset + 52, true) !== (deep ? 1 : 0) ||
+      after.getUint32(resultOffset + 56, true) !== (deep ? 2 : 1) ||
       after.getUint32(resultOffset + 60, true) !== 0) {
-      this.failIntegrity("GNUbg returned invalid Quick analysis settings or indices");
+      this.failIntegrity("GNUbg returned invalid analysis settings or indices");
     }
     const candidates: BepAnalysisCandidate[] = Array.from({ length: count }, (_, index) => {
       const offset = candidatesOffset + index * ANALYSIS_CANDIDATE_SIZE;
@@ -1012,7 +1011,7 @@ export class GnubgEngine {
         tiedWithBest: tied === 1,
       };
     });
-    const provenance = this.quickProvenance();
+    const provenance = deep ? this.deepProvenance() : this.quickProvenance();
     const result: BepAnalyzeCheckerResult = {
       schemaVersion: BEP_ANALYSIS_SCHEMA_VERSION,
       positionRevision: request.position.revision,
@@ -1058,16 +1057,26 @@ export class GnubgEngine {
     };
   }
 
+  private deepProvenance(): BepAnalysisProvenance {
+    return {
+      ...this.quickProvenance(),
+      requestedProfile: "deep-2ply-v1", effectiveProfile: "deep-2ply-v1",
+      depth: 2, pruning: true,
+      filterPolicy: "quick-top2-window160-max8-plus-played-v1",
+    };
+  }
+
   public analyzeCube(request: BepAnalyzeCubeRequest, startedAt = performance.now()): BepAnalyzeCubeResult {
     this.assertUsable();
     if (!this.analysisAvailable || !this.assetsId)
       throw engineError("unsupported", "Identified GNUbg analysis is unavailable", false, false);
     if (!isBepAnalyzeCubeRequest(request))
       throw engineError("invalid-request", "Cube analysis request is malformed", false, false);
-    if (request.profile !== "quick-0ply-v1" || request.position.rules.jacoby ||
+    if (request.position.rules.jacoby ||
       request.position.rules.beavers || request.position.rules.raccoons || request.position.rules.automaticDoubles !== 0)
-      throw engineError("unsupported", "Cube analysis supports standard Quick rules only", false, false);
-    // The pinned expert context is exactly {cubeful, 0, no pruning, deterministic, 0 noise}.
+      throw engineError("unsupported", "Cube analysis supports standard rules only", false, false);
+    const deep = request.profile === "deep-2ply-v1";
+    // Fixed native contexts: Quick {TRUE,0,FALSE,TRUE,0}, Deeper {TRUE,2,TRUE,TRUE,0}.
     // Reuse ABI v1's native FindCubeDecision output; no layouts or gameplay contracts change.
     const response = request.role === "response";
     const native = this.evaluateCube({
@@ -1077,8 +1086,8 @@ export class GnubgEngine {
       phase: response ? "respond-to-offer" : "consider-offer",
       enginePlayer: request.actor,
       legalDecisions: response ? ["take", "pass"] : ["no-double", "double", "too-good"],
-      settings: { strength: "expert", limits: { timeMs: request.timeMs, maxDepth: 0 }, randomization: { mode: "deterministic", seed: "quick-0ply-v1", variability: 0 } },
-    }, startedAt);
+      settings: { strength: deep ? "maximum" : "expert", limits: { timeMs: request.timeMs, maxDepth: deep ? 2 : 0 }, randomization: { mode: "deterministic", seed: request.profile, variability: 0 } },
+    }, startedAt, { strength: deep ? "maximum" : "expert", depth: deep ? 2 : 0, completed: true });
     if (!native.evaluated)
       throw engineError("unsupported", "GNUbg did not evaluate this unavailable or dead cube", false, false);
     const offered = Math.min(native.take, native.pass);
@@ -1095,7 +1104,7 @@ export class GnubgEngine {
       noDoubleEquity: native.noDouble, doubleTakeEquity: native.take, doublePassEquity: native.pass,
       recordedActionEquity: recorded,
       equityLoss: response ? recorded - offered : Math.max(native.noDouble, offered) - recorded,
-      elapsedMs: elapsedSince(startedAt), provenance: this.quickProvenance(),
+      elapsedMs: elapsedSince(startedAt), provenance: deep ? this.deepProvenance() : this.quickProvenance(),
     };
     if (!bepCubeAnalysisMatchesRequest(request, result))
       this.failIntegrity("GNUbg returned inconsistent cube analysis");
@@ -1109,13 +1118,15 @@ export class GnubgEngine {
   private evaluateCube(
     request: BepCubeDecisionRequest,
     startedAt = performance.now(),
+    analysisSearch?: SearchPolicy,
   ): { result: BepCubeDecisionResult; evaluated: boolean; noDouble: number; take: number; pass: number } {
     this.assertUsable();
     const count = request.legalDecisions.length;
     if (count < 1 || count > 6) {
       throw engineError("invalid-request", "Cube action count is outside the ABI limit", false, false);
     }
-    const search = resolveSearchPolicy(request.settings);
+    // Analysis never adapts depth to gameplay budgets or strength presets.
+    const search = analysisSearch ?? resolveSearchPolicy(request.settings);
     const resultOffset = CUBE_REQUEST_SIZE;
     const errorOffset = resultOffset + CUBE_RESULT_SIZE;
     const usedSize = errorOffset + ERROR_SIZE;

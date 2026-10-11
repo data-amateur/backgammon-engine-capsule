@@ -348,7 +348,8 @@ async function createAnalysisEngine(options: {
       view.setFloat32(candidatesOffset + 136, 1, true);
       view.setUint32(candidatesOffset + 140, 1, true);
       view.setUint32(candidatesOffset + 144, 1, true);
-      const fields = [ABI_VERSION, 64, 1, 0, 1, 1, 1, steps === 0 ? 1 : 0, 0, 0, 1, 1, 0, 0, 1, 0];
+      const profile = view.getUint32(requestOffset + 284, true);
+      const fields = [ABI_VERSION, 64, 1, 0, 1, 1, 1, steps === 0 ? 1 : 0, 0, profile === 2 ? 2 : 0, 1, 1, 0, profile === 2 ? 1 : 0, profile, 0];
       fields.forEach((value, index) => view.setUint32(resultOffset + index * 4, value, true));
       options.corrupt?.(view, resultOffset, candidatesOffset);
       return 0;
@@ -367,7 +368,7 @@ describe("analysis WASM decoding", () => {
   it("verifies the additive descriptor, exact layout, provenance and refreshed heap", async () => {
     const { engine, snapshot } = await createAnalysisEngine({ grow: true });
     expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
-      .metadata.capabilities.analysis?.profiles).toEqual(["quick-0ply-v1"]);
+      .metadata.capabilities.analysis?.profiles).toEqual(["quick-0ply-v1", "deep-2ply-v1"]);
     const result = engine.analyzeChecker(terminalRequest);
     expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
       .metadata.capabilities.analysis?.quickProvenance).toEqual(result.provenance);
@@ -390,11 +391,18 @@ describe("analysis WASM decoding", () => {
     expect(request.getUint32(296, true)).toBe(6);
     engine.dispose();
   });
-  it("refuses unsupported profiles instead of reducing depth", async () => {
+  it("sends the fixed 2-ply profile and validates the native effective settings", async () => {
     const { engine, snapshot } = await createAnalysisEngine();
-    expect(() => engine.analyzeChecker({ ...terminalRequest, profile: "deep-2ply-v1" }))
-      .toThrow(/Quick 0-ply/);
-    expect(snapshot()).toBeUndefined();
+    const result = engine.analyzeChecker({ ...terminalRequest, profile: "deep-2ply-v1", timeMs: 1 });
+    expect(snapshotView(snapshot()).getUint32(284, true)).toBe(2);
+    expect(result.provenance).toMatchObject({ depth: 2, pruning: true, noise: 0, completion: "complete" });
+    expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
+      .metadata.capabilities.analysis?.deepProvenance).toEqual(result.provenance);
+    engine.dispose();
+  });
+  it("rejects a weaker native result for Deeper rather than accepting a fallback", async () => {
+    const { engine } = await createAnalysisEngine({ corrupt: (view, result) => view.setUint32(result + 36, 0, true) });
+    expect(() => engine.analyzeChecker({ ...terminalRequest, profile: "deep-2ply-v1" })).toThrow(/invalid analysis settings/);
     engine.dispose();
   });
   it("rejects a changed analysis layout before initializing GNUbg", async () => {

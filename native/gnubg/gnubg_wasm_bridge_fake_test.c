@@ -1435,7 +1435,7 @@ scenario_analysis_boundaries(void)
     CHECK(bgc_wasm_analyze_checker(arena, 1401u, 0, 1232u, 1400u) == BGC_WASM_STATUS_INVALID_ARGUMENT);
     prepare_analysis(arena);
     request = (bgc_wasm_analysis_request_v1 *) (void *) arena;
-    request->profile = 2u;
+    request->profile = 3u;
     CHECK(bgc_wasm_analyze_checker(arena, TEST_ARENA_SIZE, 0, 1232u, 1400u) == BGC_WASM_STATUS_UNSUPPORTED);
     CHECK(bytes_are_zero(arena + 312u, 6u * 152u));
     CHECK(fake_analysis_calls == 6u && fake_assertion_failures == 0u);

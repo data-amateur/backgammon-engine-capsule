@@ -253,6 +253,7 @@ typedef struct {
 /* Additive analysis ABI 1.0; the gameplay descriptor/layouts above stay exact. */
 #define BGC_WASM_ANALYSIS_VERSION UINT32_C(0x00010000)
 #define BGC_WASM_ANALYSIS_QUICK_0PLY_V1 UINT32_C(1)
+#define BGC_WASM_ANALYSIS_DEEP_2PLY_V1 UINT32_C(2)
 #define BGC_WASM_ANALYSIS_MAX_ALTERNATIVES 5u
 #define BGC_WASM_ANALYSIS_MAX_RETURNED 6u
 

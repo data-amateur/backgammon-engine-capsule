@@ -261,6 +261,7 @@ export const BEP_ANALYSIS_SCHEMA_VERSION = 1 as const;
 export const BEP_ANALYSIS_LIMITS = {
   maxAlternatives: 5,
   maxReturnedCandidates: 6,
+  maxDeepRootPositions: 9,
   maxLegalPositions: 4_096,
   equityTolerance: 0.00001,
 } as const;
@@ -274,6 +275,8 @@ export interface BepAnalysisCapabilities {
   readonly profiles: readonly BepAnalysisProfile[];
   /** Optional exact Quick identity, available after runtime initialization. */
   readonly quickProvenance?: BepAnalysisProvenance;
+  /** Exact completed Deeper profile; independent of gameplay strength presets. */
+  readonly deepProvenance?: BepAnalysisProvenance;
 }
 
 export interface BepAnalysisRequest {
@@ -342,6 +345,7 @@ export interface BepAnalyzeCheckerResult {
   readonly candidates: readonly BepAnalysisCandidate[];
   /** A forced pass has one legal final position: the unchanged board. */
   readonly legalPositionCount: number;
+  /** Roots fully evaluated at the effective depth, including the played root. */
   readonly evaluatedPositionCount: number;
   readonly forced: boolean;
   readonly noPlay: boolean;

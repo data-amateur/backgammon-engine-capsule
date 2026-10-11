@@ -291,11 +291,11 @@ encode_candidates(const bgc_candidate *source,
 }
 
 int
-bgc_wasm_test_expect_analysis_parity(const char *test, bgc_engine *engine,
+bgc_wasm_test_expect_analysis_profile_parity(const char *test, bgc_engine *engine,
                                    const bgc_position *position,
                                    const bgc_candidate *played,
                                    const bgc_board *expected_board,
-                                   const bgc_checker_analysis *direct)
+                                   const bgc_checker_analysis *direct, const uint32_t profile)
 {
     enum { CAPACITY = 4096, CANDIDATES = 312, RESULT = 1232, ERROR = 1400 };
     uint8_t *arena = calloc(CAPACITY + 16u, 1u);
@@ -317,7 +317,7 @@ bgc_wasm_test_expect_analysis_parity(const char *test, bgc_engine *engine,
         return parity_failure(test, "analysis fixture encoding failed");
     }
     request.expected_board = expected_wire.board;
-    request.profile = 1u;
+    request.profile = profile;
     request.max_alternatives = 5u;
     request.candidates_offset = CANDIDATES;
     request.candidates_capacity = 6u;
@@ -330,8 +330,8 @@ bgc_wasm_test_expect_analysis_parity(const char *test, bgc_engine *engine,
         result.evaluated_position_count != direct->evaluated_position_count ||
         result.forced != (uint32_t) direct->forced || result.no_play != (uint32_t) direct->no_play ||
         memcmp(&result.equity_loss, &direct->equity_loss, sizeof(float)) ||
-        result.depth != 0u || result.cubeful != 1u || result.deterministic != 1u ||
-        result.noise != 0.0f || result.pruning != 0u || result.profile != 1u) {
+        result.depth != (profile == 2u ? 2u : 0u) || result.cubeful != 1u || result.deterministic != 1u ||
+        result.noise != 0.0f || result.pruning != (profile == 2u ? 1u : 0u) || result.profile != profile) {
         free(arena);
         return parity_failure(test, "analysis status, counts, settings or loss differ");
     }
@@ -555,6 +555,15 @@ cleanup:
     free(arena);
     free(wire_candidates);
     return outcome;
+}
+
+int
+bgc_wasm_test_expect_analysis_parity(const char *test, bgc_engine *engine,
+    const bgc_position *position, const bgc_candidate *played,
+    const bgc_board *expected_board, const bgc_checker_analysis *direct)
+{
+    return bgc_wasm_test_expect_analysis_profile_parity(test, engine, position,
+        played, expected_board, direct, BGC_ANALYSIS_QUICK_0PLY_V1);
 }
 
 int

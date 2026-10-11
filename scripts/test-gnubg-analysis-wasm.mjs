@@ -8,6 +8,7 @@ import { build } from "esbuild";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const buildRoot = path.join(root, "build/gnubg/wasm");
 const reference = JSON.parse(readFileSync(path.join(root, "tests/fixtures/gnubg-analysis-reference-v1.json"), "utf8"));
+const deeperReference = JSON.parse(readFileSync(path.join(root, "tests/fixtures/gnubg-deep-analysis-reference-v1.json"), "utf8"));
 const corpus = JSON.parse(readFileSync(path.join(root, "tests/fixtures/bep-analysis-v1.json"), "utf8"));
 const { default: createModule } = await import(pathToFileURL(path.join(buildRoot, "gnubg-wasm.mjs")).href);
 const digest = createHash("sha256");
@@ -71,21 +72,23 @@ function requestFor(actor, fixtureIndex) {
 
 try {
   const hello = engine.hello({ supportedProtocolVersions: [1], host: { name: "Real WASM analysis test", version: "1" } });
-  const { quickProvenance, ...capabilities } = hello.metadata.capabilities.analysis;
+  const { quickProvenance, deepProvenance, ...capabilities } = hello.metadata.capabilities.analysis;
   assert.equal(quickProvenance.assetsId, assetsId);
   assert.equal(quickProvenance.weightsSha256, reference.weightsSha256);
   assert.equal(quickProvenance.matchEquitySha256, reference.matchEquitySha256);
   assert.deepEqual(capabilities,
-    { schemaVersions: [1], methods: ["analyze-checker", "analyze-cube"], profiles: ["quick-0ply-v1"] });
-  for (const actor of ["white", "black"]) {
+    { schemaVersions: [1], methods: ["analyze-checker", "analyze-cube"], profiles: ["quick-0ply-v1", "deep-2ply-v1"] });
+  assert.equal(deepProvenance.depth, 2);
+  assert.equal(deepProvenance.pruning, true);
+  for (const profile of ["quick-0ply-v1", "deep-2ply-v1"]) for (const actor of ["white", "black"]) {
     for (let index = 0; index < reference.cases.length; index++) {
-      const request = requestFor(actor, index);
-      const expected = reference.cases[index];
+      const request = { ...requestFor(actor, index), profile };
+      const expected = (profile === "deep-2ply-v1" ? deeperReference : reference).cases[index];
       const result = engine.analyzeChecker(request);
       const played = result.candidates.find(({ id }) => id === result.playedCandidateId);
       const best = result.candidates[0];
       assert.equal(result.legalPositionCount, expected.legalPositionCount);
-      assert.equal(result.evaluatedPositionCount, expected.legalPositionCount);
+      assert.equal(result.evaluatedPositionCount, expected.evaluatedPositionCount ?? expected.legalPositionCount);
       assert.equal(result.candidates.length, index === 2 ? 6 : 5);
       assert.equal(played.rank, expected.playedRank);
       assert.deepEqual(played.resultingBoard, request.expectedResultingBoard);
@@ -102,9 +105,9 @@ try {
       assert.equal(result.provenance.assetsId, assetsId);
       assert.equal(result.provenance.weightsSha256, reference.weightsSha256);
       assert.equal(result.provenance.matchEquitySha256, reference.matchEquitySha256);
-      assert.equal(result.provenance.depth, 0);
+      assert.equal(result.provenance.depth, profile === "deep-2ply-v1" ? 2 : 0);
       assert.equal(result.provenance.noise, 0);
-      assert.equal(result.provenance.filterPolicy, "all-unique-root-positions-v1");
+      assert.equal(result.provenance.filterPolicy, profile === "deep-2ply-v1" ? "quick-top2-window160-max8-plus-played-v1" : "all-unique-root-positions-v1");
       if (index === 2) {
         const limited = engine.analyzeChecker({ ...request, maxAlternatives: 1 });
         assert.equal(limited.candidates.length, 2);
@@ -135,8 +138,10 @@ try {
   lowerDie.playedTurn.steps[0].die = 1;
   assert.throws(() => engine.analyzeChecker(lowerDie),
     (error) => error instanceof GnubgEngineError && error.bepError.code === "illegal-turn");
-  assert.throws(() => engine.analyzeChecker({ ...terminal, profile: "deep-2ply-v1" }),
-    (error) => error instanceof GnubgEngineError && error.bepError.code === "unsupported");
+  const deeperWin = engine.analyzeChecker({ ...terminal, profile: "deep-2ply-v1" });
+  close(deeperWin.candidates[0].equity, 1);
+  assert.equal(deeperWin.provenance.depth, 2);
+  assert.equal(deeperWin.evaluatedPositionCount, 1);
   assert.throws(() => engine.analyzeChecker({ ...terminal, expectedResultingBoard: terminal.position.board }),
     (error) => error instanceof GnubgEngineError && error.bepError.code === "illegal-turn");
 

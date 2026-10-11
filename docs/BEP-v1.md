@@ -81,3 +81,5 @@ four checker steps. Match play is limited to length 64 and cube value 64;
 money play retains the general cube ceiling of 4,096. Cycles, non-finite
 numbers, unsafe identifiers, inconsistent positions, duplicate IDs, and
 malformed method payloads are rejected.
+
+[Selected Deeper analysis](DEEPER-ANALYSIS.md) adds the optional `deep-2ply-v1` profile and exact initialized `deepProvenance`. Checker result ranks and evaluated counts refer to its complete selected root set; Quick coverage remains unchanged.

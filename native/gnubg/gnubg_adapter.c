@@ -1017,10 +1017,12 @@ bgc_engine_analyze_checker(bgc_engine *engine,
     cubeinfo cube;
     /* quick-0ply-v1: cubeful, zero plies, no pruning, deterministic, no noise. */
     const evalcontext context = {TRUE, 0, FALSE, TRUE, 0.0f};
+    /* Independent review profile: GNUbg's internal neural pruning is enabled. */
+    const evalcontext deep_context = {TRUE, 2, TRUE, TRUE, 0.0f};
     bgc_position expected_position;
     positionkey played_key, expected_key;
     move *owned;
-    uint32_t count, index, played_rank = 0, top_count;
+    uint32_t count, legal_count, index, played_rank = 0, top_count;
     unsigned int played_pips = 0;
     bgc_checker_analysis output = {0};
     bgc_status status;
@@ -1036,7 +1038,7 @@ bgc_engine_analyze_checker(bgc_engine *engine,
         (played->step_count && !played->steps) ||
         max_alternatives < 1u || max_alternatives > BGC_ANALYSIS_MAX_ALTERNATIVES)
         return fail(error, BGC_STATUS_INVALID_ARGUMENT, "checker analysis arguments are invalid");
-    if (profile != BGC_ANALYSIS_QUICK_0PLY_V1)
+    if (profile != BGC_ANALYSIS_QUICK_0PLY_V1 && profile != BGC_ANALYSIS_DEEP_2PLY_V1)
         return fail(error, BGC_STATUS_UNSUPPORTED, "checker analysis profile is unsupported");
     status = validate_position_metadata(position, TRUE, error);
     if (status != BGC_STATUS_OK)
@@ -1097,6 +1099,33 @@ bgc_engine_analyze_checker(bgc_engine *engine,
         }
     }
     qsort(owned, count, sizeof(*owned), compare_analysis_moves);
+    legal_count = count;
+    if (profile == BGC_ANALYSIS_DEEP_2PLY_V1) {
+        uint32_t selected = count < 2u ? count : 2u;
+        int played_selected = 0;
+        /* RollBG policy v1: Quick top two, then the 0.160 window, at most eight.
+         * The played position is a mandatory ninth root if it falls outside.
+         * Selection precedes recursive scoring, which mutates move equities. */
+        while (selected < count && selected < 8u &&
+               (double) owned[0].rScore - owned[selected].rScore <= 0.160)
+            selected++;
+        for (index = 0; index < count; index++) {
+            if (EqualKeys(owned[index].key, played_key)) {
+                if (index < selected) played_selected = 1;
+                else owned[selected] = owned[index];
+                break;
+            }
+        }
+        count = selected + (played_selected ? 0u : 1u);
+        for (index = 0; index < count; index++) {
+            if (ScoreMove(NULL, &owned[index], &cube, &deep_context, 2) != 0 ||
+                !isfinite(owned[index].rScore) || !isfinite(owned[index].rScore2)) {
+                free(owned);
+                return fail(error, BGC_STATUS_EVALUATION_FAILED, "GNUbg could not complete Deeper checker analysis");
+            }
+        }
+        qsort(owned, count, sizeof(*owned), compare_analysis_moves);
+    }
     for (index = 0; index < count; index++)
         if (EqualKeys(owned[index].key, played_key)) {
             played_rank = index;
@@ -1114,9 +1143,9 @@ bgc_engine_analyze_checker(bgc_engine *engine,
                            played_rank + 1u, owned[0].rScore, &output.candidates[top_count]);
         output.candidate_count++;
     }
-    output.legal_position_count = count;
+    output.legal_position_count = legal_count;
     output.evaluated_position_count = count;
-    output.forced = count == 1u;
+    output.forced = legal_count == 1u;
     output.equity_loss = owned[0].rScore - owned[played_rank].rScore;
     free(owned);
     *analysis_out = output;

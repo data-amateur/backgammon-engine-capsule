@@ -1,7 +1,7 @@
-# Quick checker analysis, schema 1
+# Checker analysis, schema 1
 
 Stages 0–1 add an optional BEP v1 analysis extension for
-`analyze-checker` and `quick-0ply-v1`. Stage 4 also advertises
+`analyze-checker` and `quick-0ply-v1`. [Stage 5](DEEPER-ANALYSIS.md) adds the independent selected `deep-2ply-v1` profile. Stage 4 also advertises
 [`analyze-cube`](CUBE-ANALYSIS.md). The existing `choose-turn`,
 `decide-cube`, protocol version, arena ABI 1.0 descriptor, and gameplay layouts
 remain compatible. A legacy WASM module without the additive descriptor can
@@ -11,10 +11,10 @@ analysis descriptor fails startup rather than decoding an unknown layout.
 The application contract lives in `shared/src/engineProtocol.ts` in RollBG;
 this repository mirrors its analysis types and validation in `src/protocol/`.
 Both copies test the same serialized `bep-analysis-v1.json` corpus and pin its
-SHA-256 (`9087a625e41a791ededee471b4f24d460a3d15a62cbe40615ae9ec0c167ab982`).
+SHA-256 (`165ea3631b106102b8f8ce778b847ea69cd6d76b378fd1bca88e9a820727dccf`).
 The corpus includes old/new handshakes, a complete terminal bearoff request,
 and malformed requests and responses, plus both cube roles and all four
-recorded actions. `deep-2ply-v1` remains unadvertised and returns `unsupported`.
+recorded actions, plus Deeper requests, results, provenance and root bounds.
 
 ## Request and numerical meaning
 
@@ -147,4 +147,4 @@ npm run test:e2e
 The Stage 0–1 boundary does not include archive extraction, a host queue,
 review UI, summaries, or persistent results. Stage 2 adds that host decision
 pipeline, and Stage 3 adds checker review and local results. Stage 4 adds cube
-review. Deeper evaluation and measured device performance remain later stages.
+review. Stage 5 adds selected Deeper evaluation. Measured device performance remains Stage 6.

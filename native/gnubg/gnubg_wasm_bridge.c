@@ -641,14 +641,20 @@ analysis_board_valid(const bgc_board *board) {
 
 static int
 analysis_output_valid(const bgc_checker_analysis *analysis,
-                      const uint32_t capacity) {
+                      const uint32_t capacity, const uint32_t profile) {
     uint32_t index, previous;
     if (analysis->candidate_count < 1u || analysis->candidate_count > capacity ||
         analysis->played_index >= analysis->candidate_count ||
         analysis->legal_position_count < 1u ||
         analysis->legal_position_count > BGC_MAX_CANDIDATES ||
-        analysis->evaluated_position_count != analysis->legal_position_count ||
-        analysis->candidate_count > analysis->legal_position_count ||
+        analysis->evaluated_position_count < 1u ||
+        analysis->evaluated_position_count > analysis->legal_position_count ||
+        (profile == BGC_ANALYSIS_QUICK_0PLY_V1 &&
+         analysis->evaluated_position_count != analysis->legal_position_count) ||
+        (profile == BGC_ANALYSIS_DEEP_2PLY_V1 &&
+         (analysis->evaluated_position_count > BGC_ANALYSIS_MAX_DEEP_ROOTS ||
+          analysis->evaluated_position_count < (analysis->legal_position_count < 2u ? 1u : 2u))) ||
+        analysis->candidate_count > analysis->evaluated_position_count ||
         analysis->forced != (analysis->legal_position_count == 1u) ||
         (analysis->no_play != 0 && analysis->no_play != 1) ||
         (analysis->no_play && !analysis->forced) ||
@@ -660,7 +666,7 @@ analysis_output_valid(const bgc_checker_analysis *analysis,
         uint32_t segment_index;
         if (!analysis_board_valid(&candidate->board) ||
             !isfinite(candidate->equity) ||
-            candidate->rank < 1u || candidate->rank > analysis->legal_position_count ||
+            candidate->rank < 1u || candidate->rank > analysis->evaluated_position_count ||
             candidate->segment_count > BGC_MAX_TURN_STEPS ||
             (analysis->no_play ? candidate->segment_count != 0u : candidate->segment_count == 0u) ||
             candidate->tied_with_best !=
@@ -751,7 +757,8 @@ bgc_wasm_analyze_checker_with_engine(bgc_engine *engine,
         request.candidates_capacity < request.max_alternatives + 1u)
         return fail_with_message(BGC_WASM_STATUS_INVALID_ARGUMENT, &arena, &error_range,
                                  "analysis bounds or reserved fields are invalid");
-    if (request.profile != BGC_WASM_ANALYSIS_QUICK_0PLY_V1)
+    if (request.profile != BGC_WASM_ANALYSIS_QUICK_0PLY_V1 &&
+        request.profile != BGC_WASM_ANALYSIS_DEEP_2PLY_V1)
         return fail_with_message(BGC_WASM_STATUS_UNSUPPORTED, &arena, &error_range,
                                  "analysis profile is unsupported");
     status = convert_position(&request.position, &position);
@@ -777,7 +784,7 @@ bgc_wasm_analyze_checker_with_engine(bgc_engine *engine,
         &expected_position.board, request.profile, request.max_alternatives, &analysis, &native_error);
     if (native_status != BGC_STATUS_OK)
         return fail_with_adapter_error(native_status, &arena, &error_range, &native_error);
-    if (!analysis_output_valid(&analysis, request.candidates_capacity))
+    if (!analysis_output_valid(&analysis, request.candidates_capacity, request.profile))
         return fail_with_message(BGC_WASM_STATUS_EVALUATION_FAILED, &arena, &error_range,
                                  "native engine returned inconsistent analysis");
     for (index = 0; index < analysis.candidate_count; index++) {
@@ -820,6 +827,8 @@ bgc_wasm_analyze_checker_with_engine(bgc_engine *engine,
     result.cubeful = 1u;
     result.deterministic = 1u;
     result.profile = request.profile;
+    result.depth = request.profile == BGC_ANALYSIS_DEEP_2PLY_V1 ? 2u : 0u;
+    result.pruning = request.profile == BGC_ANALYSIS_DEEP_2PLY_V1 ? 1u : 0u;
     bgc_wasm_arena_store(&arena, &result_range, &result, sizeof(result));
     return BGC_WASM_STATUS_OK;
 }

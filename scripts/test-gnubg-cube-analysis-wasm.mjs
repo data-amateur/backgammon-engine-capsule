@@ -13,6 +13,7 @@ const reference = JSON.parse(
     "utf8",
   ),
 );
+const deepReference = JSON.parse(readFileSync(path.join(root, "tests/fixtures/gnubg-cube-deep-analysis-reference-v1.json"), "utf8"));
 const corpus = JSON.parse(
   readFileSync(path.join(root, "tests/fixtures/bep-analysis-v1.json"), "utf8"),
 );
@@ -122,13 +123,13 @@ try {
     }).metadata.capabilities.analysis.methods,
     ["analyze-checker", "analyze-cube"],
   );
-  for (const fixture of reference.cases)
+  for (const profile of ["quick-0ply-v1", "deep-2ply-v1"]) for (const fixture of (profile === "deep-2ply-v1" ? deepReference : reference).cases)
     for (const actor of ["white", "black"]) {
       if (!fixture.evaluated) {
         assert.throws(
           () =>
             engine.analyzeCube(
-              requestFor(fixture, actor, "offer", "no-double"),
+              { ...requestFor(fixture, actor, "offer", "no-double"), profile },
             ),
           (error) =>
             error instanceof GnubgEngineError &&
@@ -140,7 +141,7 @@ try {
         for (const action of role === "offer"
           ? ["no-double", "double"]
           : ["take", "pass"]) {
-          const request = requestFor(fixture, actor, role, action);
+          const request = { ...requestFor(fixture, actor, role, action), profile };
           const result = engine.analyzeCube(request);
           close(result.noDoubleEquity, fixture.noDouble);
           close(result.doubleTakeEquity, fixture.take);
@@ -149,6 +150,9 @@ try {
           assert.equal(result.referenceCube, fixture.cube);
           assert.equal(result.actor, request.actor);
           assert.equal(result.provenance.assetsId, assetsId);
+          assert.equal(result.provenance.effectiveProfile, profile);
+          assert.equal(result.provenance.depth, profile === "deep-2ply-v1" ? 2 : 0);
+          assert.equal(result.provenance.pruning, profile === "deep-2ply-v1");
           const offered = Math.min(fixture.take, fixture.pass);
           const recorded =
             action === "no-double"
@@ -177,23 +181,22 @@ try {
           );
           assert.equal(
             result.tooGood,
-            role === "offer" &&
-              [
-                "too-good",
-                "match-5-score-1-3",
-                "post-crawford-trailing",
-                "match-7-too-good",
-              ].includes(fixture.name),
+            role === "offer" && [4, 5, 6, 7].includes(fixture.decision),
           );
         }
     }
   // Rejection leaves the initialized runtime usable.
   const good = requestFor(reference.cases[0], "white", "offer", "no-double");
   assert.throws(
-    () => engine.analyzeCube({ ...good, profile: "deep-2ply-v1" }),
+    () => engine.analyzeCube({ ...good, position: { ...good.position, rules: { ...good.position.rules, beavers: true } } }),
     (error) => error.bepError.code === "unsupported",
   );
   close(engine.analyzeCube(good).equityLoss, 0.088883877);
+  const fixedDeep = engine.analyzeCube({ ...good, profile: "deep-2ply-v1", timeMs: 1 });
+  close(fixedDeep.noDoubleEquity, deepReference.cases[0].noDouble);
+  close(fixedDeep.doubleTakeEquity, deepReference.cases[0].take);
+  assert.equal(fixedDeep.provenance.depth, 2);
+  assert.equal(fixedDeep.provenance.completion, "complete");
   console.log(
     "Real WASM cube analysis: independent equities, mirrored roles, losses, too-good, unavailable cubes and recovery passed",
   );
