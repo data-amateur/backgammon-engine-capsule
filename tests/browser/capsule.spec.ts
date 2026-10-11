@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type {
+  BepAnalysisCapabilities,
   BepAnalyzeCheckerResult,
   BepAnalyzeCubeResult,
 } from "../../src/protocol/types";
@@ -22,10 +24,23 @@ interface EngineMetadata {
   };
   readonly capabilities: {
     readonly moveRanking: boolean;
+    readonly analysis?: BepAnalysisCapabilities;
   };
 }
 
 interface CapsuleTestResults {
+  readonly deeperAnalysis: {
+    readonly kind: string;
+    readonly payload: BepAnalyzeCheckerResult;
+  };
+  readonly deeperCubeAnalysis: {
+    readonly kind: string;
+    readonly payload: BepAnalyzeCubeResult;
+  };
+  readonly deeperResponseAnalysis: {
+    readonly kind: string;
+    readonly payload: BepAnalyzeCubeResult;
+  };
   readonly analysis: {
     readonly kind: string;
     readonly payload: BepAnalyzeCheckerResult;
@@ -155,7 +170,7 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
       analysis: {
         schemaVersions: [1],
         methods: ["analyze-checker", "analyze-cube"],
-        profiles: ["quick-0ply-v1"],
+        profiles: ["quick-0ply-v1", "deep-2ply-v1"],
       },
     },
   });
@@ -212,6 +227,82 @@ test("runs real GNUbg over BEP v1 in an opaque sandbox", async ({
   });
   expect(results.responseAnalysis.payload.equityLoss).toBeCloseTo(
     0.114790678,
+    5,
+  );
+  const checkerReference = JSON.parse(
+    readFileSync(
+      new URL(
+        "../fixtures/gnubg-deep-analysis-reference-v1.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ).cases.find(
+    (item: { context: string }) =>
+      item.context === "money-centered-cube-1-played-8-to-5",
+  );
+  expect(results.deeperAnalysis.kind).toBe("bep.result");
+  const deeper = results.deeperAnalysis.payload;
+  const deeperPlayed = deeper.candidates.find(
+    ({ id }) => id === deeper.playedCandidateId,
+  );
+  expect(deeper.legalPositionCount).toBe(checkerReference.legalPositionCount);
+  expect(deeper.evaluatedPositionCount).toBe(9);
+  expect(deeperPlayed?.rank).toBe(checkerReference.playedRank);
+  expect(deeperPlayed?.resultingBoard).toEqual(played?.resultingBoard);
+  expect(deeper.candidates[0]?.equity).toBeCloseTo(
+    checkerReference.bestEquity,
+    5,
+  );
+  expect(deeperPlayed?.equity).toBeCloseTo(checkerReference.playedEquity, 5);
+  expect(deeper.equityLoss).toBeCloseTo(checkerReference.equityLoss, 5);
+  expect(deeper.provenance).toMatchObject({
+    requestedProfile: "deep-2ply-v1",
+    effectiveProfile: "deep-2ply-v1",
+    depth: 2,
+    cubeful: true,
+    deterministic: true,
+    noise: 0,
+    pruning: true,
+    completion: "complete",
+    filterPolicy: "quick-top2-window160-max8-plus-played-v1",
+    buildId: checker.provenance.buildId,
+    assetsId: checker.provenance.assetsId,
+  });
+  expect(deeper.provenance).toEqual(
+    results.hello.payload.metadata.capabilities.analysis?.deepProvenance,
+  );
+  const cubeReference = JSON.parse(
+    readFileSync(
+      new URL(
+        "../fixtures/gnubg-cube-deep-analysis-reference-v1.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ).cases.find((item: { name: string }) => item.name === "double-take");
+  for (const message of [
+    results.deeperCubeAnalysis,
+    results.deeperResponseAnalysis,
+  ]) {
+    expect(message.kind).toBe("bep.result");
+    expect(message.payload.noDoubleEquity).toBeCloseTo(
+      cubeReference.noDouble,
+      5,
+    );
+    expect(message.payload.doubleTakeEquity).toBeCloseTo(cubeReference.take, 5);
+    expect(message.payload.doublePassEquity).toBeCloseTo(cubeReference.pass, 5);
+    expect(message.payload.referenceCube).toBe(1);
+    expect(message.payload.equityPerspective).toBe("white");
+    expect(message.payload.provenance).toEqual(deeper.provenance);
+  }
+  expect(results.deeperCubeAnalysis.payload.recommendedAction).toBe(
+    "no-double",
+  );
+  expect(results.deeperCubeAnalysis.payload.equityLoss).toBe(0);
+  expect(results.deeperResponseAnalysis.payload.recommendedAction).toBe("take");
+  expect(results.deeperResponseAnalysis.payload.equityLoss).toBeCloseTo(
+    cubeReference.pass - cubeReference.take,
     5,
   );
   expect(results.unsupportedAnalysis).toMatchObject({

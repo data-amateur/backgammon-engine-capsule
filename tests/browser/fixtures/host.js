@@ -250,9 +250,9 @@ async function runRealEngine() {
     "analyze-checker",
     analysisRequest,
   );
-  const unsupportedAnalysis = await request(
+  const deeperAnalysis = await request(
     channel.port1,
-    "request:unsupported-analysis",
+    "request:deeper-analysis",
     "analyze-checker",
     {
       ...analysisRequest,
@@ -296,6 +296,38 @@ async function runRealEngine() {
       actor: "black",
       role: "response",
       recordedAction: "pass",
+    },
+  );
+  const deeperCubeAnalysis = await request(
+    channel.port1,
+    "request:deeper-cube-analysis",
+    "analyze-cube",
+    { ...cubeRequest, profile: "deep-2ply-v1", timeMs: 30_000 },
+  );
+  const deeperResponseAnalysis = await request(
+    channel.port1,
+    "request:deeper-response-analysis",
+    "analyze-cube",
+    {
+      ...cubeRequest,
+      profile: "deep-2ply-v1",
+      timeMs: 30_000,
+      actor: "black",
+      role: "response",
+      recordedAction: "pass",
+    },
+  );
+  const unsupportedAnalysis = await request(
+    channel.port1,
+    "request:unsupported-analysis",
+    "analyze-cube",
+    {
+      ...cubeRequest,
+      profile: "deep-2ply-v1",
+      position: {
+        ...cubeRequest.position,
+        rules: { ...cubeRequest.position.rules, beavers: true },
+      },
     },
   );
 
@@ -367,10 +399,13 @@ async function runRealEngine() {
     hello: helloResult,
     choose,
     analysis,
+    deeperAnalysis,
     unsupportedAnalysis,
     cube,
     cubeAnalysis,
     responseAnalysis,
+    deeperCubeAnalysis,
+    deeperResponseAnalysis,
     postCancelHello,
     cancelledResultCount: messages.filter(
       (message) => message.requestId === "request:cancelled",
