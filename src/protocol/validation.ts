@@ -535,16 +535,23 @@ export function isBepAnalysisProfile(value: unknown): value is BepAnalysisProfil
   return value === "quick-0ply-v1" || value === "deep-2ply-v1";
 }
 
+const MAX_ANALYSIS_CAPABILITY_ENTRIES = 16;
+function isUniqueList<T>(value: unknown, item: (entry: unknown) => entry is T): value is T[] {
+  return Array.isArray(value) && value.length > 0 &&
+    value.length <= MAX_ANALYSIS_CAPABILITY_ENTRIES && value.every(item) &&
+    new Set(value).size === value.length;
+}
+
+/**
+ * The analysis block is an optional extension of the gameplay handshake. Unknown
+ * entries are tolerated so a newer capsule cannot invalidate gameplay; provenance
+ * for the profiles this host knows must still be exact.
+ */
 function isAnalysisCapabilities(value: unknown): value is BepAnalysisCapabilities {
   return isRecord(value) &&
-    Array.isArray(value.schemaVersions) && value.schemaVersions.length === 1 &&
-    value.schemaVersions[0] === BEP_ANALYSIS_SCHEMA_VERSION &&
-    Array.isArray(value.methods) && value.methods.length > 0 && value.methods.length <= 2 &&
-    value.methods.every((method) => method === "analyze-checker" || method === "analyze-cube") &&
-    new Set(value.methods).size === value.methods.length &&
-    Array.isArray(value.profiles) && value.profiles.length > 0 && value.profiles.length <= 2 &&
-    value.profiles.every(isBepAnalysisProfile) &&
-    new Set(value.profiles).size === value.profiles.length &&
+    isUniqueList(value.schemaVersions, isPositiveInteger) &&
+    isUniqueList(value.methods, isBepIdentifier) &&
+    isUniqueList(value.profiles, isBepIdentifier) &&
     (value.quickProvenance === undefined ||
       (isBepAnalysisProvenance(value.quickProvenance) &&
         value.quickProvenance.effectiveProfile === "quick-0ply-v1" &&
@@ -749,25 +756,36 @@ export function bepCheckerAnalysisMatchesRequest(
   if (top.length !== topCount || top.some(({ rank }, index) => rank !== index + 1) ||
     result.candidates.length !== topCount +
       (top.some(({ id }) => id === result.playedCandidateId) ? 0 : 1)) return false;
+  const actor = request.actor;
+  const opponent = actor === "white" ? "black" : "white";
+  // Distance from bearing off, in the actor's direction: off 0, bar 25.
+  const pips = (location: BepCheckerLocation) =>
+    location.kind === "borne-off" ? 0 : location.kind === "bar" ? 25 :
+      actor === "white" ? location.point + 1 : 24 - location.point;
+  const [first, second] = request.position.dice as readonly [number, number];
+  // GNUbg may merge one checker's consecutive moves into a segment, so only the
+  // total is bounded. A bear-off can use a larger die, so distance never exceeds it.
+  const dicePips = first === second ? 4 * first : first + second;
   return result.candidates.every((candidate) => {
     const board = {
       points: request.position.board.points.map((point) => ({ ...point })),
       bar: { ...request.position.board.bar },
       borneOff: { ...request.position.board.borneOff },
     };
-    const actor = request.actor;
-    const opponent = actor === "white" ? "black" : "white";
+    let moved = 0;
+    let boreOff = false;
     for (const segment of candidate.segments) {
       const from = segment.from.kind === "bar" ? board.bar :
         segment.from.kind === "point" ? board.points[segment.from.point] : undefined;
       if (!from || from[actor] < 1 || (segment.from.kind !== "bar" && board.bar[actor] > 0)) return false;
-      if (segment.from.kind === "point" && segment.to.kind === "point" &&
-        (actor === "white" ? segment.to.point >= segment.from.point : segment.to.point <= segment.from.point))
-        return false;
+      const distance = pips(segment.from) - pips(segment.to);
+      moved += distance;
+      if (distance < 1 || moved > dicePips) return false;
       from[actor] -= 1;
       if (segment.to.kind === "borne-off") {
         if (segment.from.kind !== "point" || segment.hit) return false;
         board.borneOff[actor] += 1;
+        boreOff = true;
       } else if (segment.to.kind === "point") {
         const to = board.points[segment.to.point]!;
         if (to[opponent] > 1 || segment.hit !== (to[opponent] === 1)) return false;
@@ -775,6 +793,10 @@ export function bepCheckerAnalysisMatchesRequest(
         to[actor] += 1;
       } else return false;
     }
+    // Checkers never leave the home board, so a turn that bears off ends with
+    // every remaining checker home. Checked after the turn: segment order varies.
+    if (boreOff && (board.bar[actor] > 0 || board.points.some((point, index) =>
+      point[actor] > 0 && pips({ kind: "point", point: index }) > 6))) return false;
     return bepAnalysisCandidateId(board) === candidate.id;
   });
 }

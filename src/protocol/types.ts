@@ -273,9 +273,13 @@ export type BepAnalysisMethod = "analyze-checker" | "analyze-cube";
 export type BepAnalysisProfile = "quick-0ply-v1" | "deep-2ply-v1";
 
 export interface BepAnalysisCapabilities {
-  readonly schemaVersions: readonly (typeof BEP_ANALYSIS_SCHEMA_VERSION)[];
-  readonly methods: readonly BepAnalysisMethod[];
-  readonly profiles: readonly BepAnalysisProfile[];
+  /**
+   * Lists may name versions, methods and profiles this host does not know.
+   * Hosts ignore unknown entries, so a newer capsule keeps the handshake valid.
+   */
+  readonly schemaVersions: readonly number[];
+  readonly methods: readonly string[];
+  readonly profiles: readonly string[];
   /** Optional exact Quick identity, available after runtime initialization. */
   readonly quickProvenance?: BepAnalysisProvenance;
   /** Exact completed Deeper profile; independent of gameplay strength presets. */
