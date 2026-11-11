@@ -49,6 +49,14 @@ function runRequest(message: CapsuleWorkerRequest): void {
     try {
       let response: CapsuleWorkerResult;
       switch (message.method) {
+        case "analyze-checker":
+        case "analyze-cube":
+          postError(message.requestId, message.method, {
+            code: "unsupported",
+            message: "The mock engine does not provide analysis",
+            retryable: false,
+          });
+          return;
         case "hello":
           response = {
             kind: "capsule.worker-result",

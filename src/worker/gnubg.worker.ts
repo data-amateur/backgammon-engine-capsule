@@ -200,6 +200,18 @@ function runRequest(message: CapsuleWorkerRequest): void {
           payload: activeEngine.decideCube(message.payload, startedAt),
         };
         break;
+      case "analyze-checker":
+        response = {
+          kind: "capsule.worker-result",
+          requestId: message.requestId,
+          method: message.method,
+          payload: activeEngine.analyzeChecker(message.payload, startedAt),
+        };
+        break;
+      case "analyze-cube":
+        response = { kind: "capsule.worker-result", requestId: message.requestId,
+          method: message.method, payload: activeEngine.analyzeCube(message.payload, startedAt) };
+        break;
     }
     if (
       state === "ready" &&

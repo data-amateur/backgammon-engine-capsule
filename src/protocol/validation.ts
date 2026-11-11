@@ -1,4 +1,16 @@
 import {
+  BEP_ANALYSIS_SCHEMA_VERSION,
+  BEP_ANALYSIS_LIMITS,
+  type BepAnalysisMethod,
+  type BepAnalysisProfile,
+  type BepAnalysisCapabilities,
+  type BepAnalysisRequest,
+  type BepAnalysisCandidate,
+  type BepAnalysisProvenance,
+  type BepAnalyzeCheckerRequest,
+  type BepAnalyzeCheckerResult,
+  type BepAnalyzeCubeRequest,
+  type BepAnalyzeCubeResult,
   BEP_PROTOCOL,
   BEP_RUNTIME_LIMITS,
   BEP_VERSION,
@@ -519,6 +531,277 @@ export const isBepChooseTurnRequest = (
     value.legalTurns.length &&
   isEngineSettings(value.settings);
 
+export function isBepAnalysisProfile(value: unknown): value is BepAnalysisProfile {
+  return value === "quick-0ply-v1" || value === "deep-2ply-v1";
+}
+
+const MAX_ANALYSIS_CAPABILITY_ENTRIES = 16;
+function isUniqueList<T>(value: unknown, item: (entry: unknown) => entry is T): value is T[] {
+  return Array.isArray(value) && value.length > 0 &&
+    value.length <= MAX_ANALYSIS_CAPABILITY_ENTRIES && value.every(item) &&
+    new Set(value).size === value.length;
+}
+
+/**
+ * The analysis block is an optional extension of the gameplay handshake. Unknown
+ * entries are tolerated so a newer capsule cannot invalidate gameplay; provenance
+ * for the profiles this host knows must still be exact.
+ */
+function isAnalysisCapabilities(value: unknown): value is BepAnalysisCapabilities {
+  return isRecord(value) &&
+    isUniqueList(value.schemaVersions, isPositiveInteger) &&
+    isUniqueList(value.methods, isBepIdentifier) &&
+    isUniqueList(value.profiles, isBepIdentifier) &&
+    (value.quickProvenance === undefined ||
+      (isBepAnalysisProvenance(value.quickProvenance) &&
+        value.quickProvenance.effectiveProfile === "quick-0ply-v1" &&
+        value.profiles.includes("quick-0ply-v1"))) &&
+    (value.deepProvenance === undefined ||
+      (isBepAnalysisProvenance(value.deepProvenance) &&
+        value.deepProvenance.effectiveProfile === "deep-2ply-v1" &&
+        value.profiles.includes("deep-2ply-v1")));
+}
+
+export function hasBepAnalysisCapability(
+  metadata: BepEngineMetadata,
+  method: BepAnalysisMethod,
+  profile: BepAnalysisProfile,
+): boolean {
+  const capability = metadata.capabilities.analysis;
+  return capability !== undefined &&
+    capability.schemaVersions.includes(BEP_ANALYSIS_SCHEMA_VERSION) &&
+    capability.methods.includes(method) && capability.profiles.includes(profile);
+}
+
+function isAnalysisRequest(value: unknown): value is BepAnalysisRequest {
+  return isRecord(value) && value.schemaVersion === BEP_ANALYSIS_SCHEMA_VERSION &&
+    isBepPosition(value.position) && isPlayer(value.actor) &&
+    isBepAnalysisProfile(value.profile) && isPositiveInteger(value.timeMs) &&
+    value.timeMs <= BEP_RUNTIME_LIMITS.maxTimeMs;
+}
+
+export function isBepAnalyzeCheckerRequest(value: unknown): value is BepAnalyzeCheckerRequest {
+  if (!isRecord(value) || !isAnalysisRequest(value) ||
+    value.position.phase !== "checker-play" || value.position.dice.length !== 2 ||
+    value.actor !== value.position.playerOnRoll || !isRecord(value.playedTurn) ||
+    !Array.isArray(value.playedTurn.steps) ||
+    value.playedTurn.steps.length > BEP_RUNTIME_LIMITS.maxTurnSteps ||
+    !value.playedTurn.steps.every(isTurnStep) || !isBoard(value.expectedResultingBoard) ||
+    !isPositiveInteger(value.maxAlternatives) ||
+    value.maxAlternatives > BEP_ANALYSIS_LIMITS.maxAlternatives) return false;
+  const remaining: number[] = value.position.dice[0] === value.position.dice[1]
+    ? Array(4).fill(value.position.dice[0]) : [...value.position.dice];
+  for (const step of value.playedTurn.steps) {
+    const index = remaining.indexOf(step.die);
+    if (index < 0 || !isStepDirectionValid(step, value.actor)) return false;
+    remaining.splice(index, 1);
+  }
+  return true;
+}
+
+export function isBepAnalyzeCubeRequest(value: unknown): value is BepAnalyzeCubeRequest {
+  if (!isRecord(value) || !isAnalysisRequest(value) ||
+    value.position.phase !== "before-roll" || value.position.dice.length !== 0 ||
+    value.position.board.borneOff.white === 15 || value.position.board.borneOff.black === 15 ||
+    value.position.cube.owner !== null && value.position.cube.owner !== value.position.playerOnRoll ||
+    value.position.match.crawford === "crawford" ||
+    value.position.match.mode === "match" && value.position.match.length === 1) return false;
+  return (value.role === "offer" && value.actor === value.position.playerOnRoll &&
+    (value.recordedAction === "double" || value.recordedAction === "no-double")) ||
+    (value.role === "response" && value.actor !== value.position.playerOnRoll &&
+    (value.recordedAction === "take" || value.recordedAction === "pass"));
+}
+
+/** Stable identity with absolute points, bar and off; independent of display orientation. */
+export function bepAnalysisCandidateId(board: BepBoard): string {
+  const counts = [...board.points, board.bar, board.borneOff];
+  return "position:" + counts.map(({ white, black }) =>
+    white.toString(16).padStart(2, "0") + black.toString(16).padStart(2, "0")).join("");
+}
+
+export function isBepAnalysisProvenance(value: unknown): value is BepAnalysisProvenance {
+  if (!isRecord(value) || !isBepIdentifier(value.engineId) ||
+    !isBepIdentifier(value.engineVersion) || !isBepIdentifier(value.buildId) ||
+    typeof value.assetsId !== "string" || !/^sha256-[0-9a-f]{64}$/.test(value.assetsId) ||
+    typeof value.weightsSha256 !== "string" || !/^[0-9a-f]{64}$/.test(value.weightsSha256) ||
+    !isBepIdentifier(value.matchEquityTableId) ||
+    typeof value.matchEquitySha256 !== "string" || !/^[0-9a-f]{64}$/.test(value.matchEquitySha256) ||
+    value.bearoff !== "gnubg-heuristic-1.08.003-no-database" ||
+    !isBepAnalysisProfile(value.requestedProfile) ||
+    value.effectiveProfile !== value.requestedProfile ||
+    value.cubeful !== true || value.deterministic !== true || value.noise !== 0 ||
+    value.completion !== "complete") return false;
+  return value.effectiveProfile === "quick-0ply-v1"
+    ? value.depth === 0 && value.pruning === false && value.filterPolicy === "all-unique-root-positions-v1"
+    : value.depth === 2 && value.pruning === true &&
+      value.filterPolicy === "quick-top2-window160-max8-plus-played-v1";
+}
+
+function isAnalysisCandidate(value: unknown): value is BepAnalysisCandidate {
+  return isRecord(value) && isBepIdentifier(value.id) && isBoard(value.resultingBoard) &&
+    value.id === bepAnalysisCandidateId(value.resultingBoard) &&
+    isFiniteNumber(value.equity) && isPositiveInteger(value.rank) &&
+    typeof value.tiedWithBest === "boolean" &&
+    Array.isArray(value.segments) && value.segments.length <= BEP_RUNTIME_LIMITS.maxTurnSteps &&
+    value.segments.every((segment) => isRecord(segment) &&
+      isTurnStep({ ...segment, die: 1 }) &&
+      (segment.from as BepCheckerLocation).kind !== "borne-off" &&
+      (segment.to as BepCheckerLocation).kind !== "bar" &&
+      (!segment.hit || (segment.to as BepCheckerLocation).kind === "point") &&
+      segment.die === undefined);
+}
+
+export function isBepAnalyzeCheckerResult(value: unknown): value is BepAnalyzeCheckerResult {
+  if (!isRecord(value) || value.schemaVersion !== BEP_ANALYSIS_SCHEMA_VERSION ||
+    !isBepIdentifier(value.positionRevision) || !isPlayer(value.actor) || value.playedLegal !== true ||
+    !isBepIdentifier(value.playedCandidateId) || !isBepIdentifier(value.bestCandidateId) ||
+    !Array.isArray(value.candidates) || value.candidates.length < 1 ||
+    value.candidates.length > BEP_ANALYSIS_LIMITS.maxReturnedCandidates ||
+    !value.candidates.every(isAnalysisCandidate) ||
+    !isPositiveInteger(value.legalPositionCount) ||
+    value.legalPositionCount > BEP_ANALYSIS_LIMITS.maxLegalPositions ||
+    !isPositiveInteger(value.evaluatedPositionCount) ||
+    value.evaluatedPositionCount > value.legalPositionCount ||
+    typeof value.forced !== "boolean" || typeof value.noPlay !== "boolean" ||
+    !isFiniteNumber(value.equityLoss) || value.equityLoss < 0 ||
+    !isFiniteNumber(value.elapsedMs) || value.elapsedMs < 0 ||
+    !isBepAnalysisProvenance(value.provenance)) return false;
+  const result = value as unknown as BepAnalyzeCheckerResult;
+  const best = result.candidates[0];
+  const played = result.candidates.find(({ id }) => id === result.playedCandidateId);
+  const tolerance = BEP_ANALYSIS_LIMITS.equityTolerance;
+  return best?.id === result.bestCandidateId && best.rank === 1 && best.tiedWithBest &&
+    played !== undefined && result.candidates.length <= result.evaluatedPositionCount &&
+    new Set(result.candidates.map(({ id }) => id)).size === result.candidates.length &&
+    new Set(result.candidates.map(({ rank }) => rank)).size === result.candidates.length &&
+    result.candidates.every((candidate, index) => candidate.rank <= result.evaluatedPositionCount &&
+      (index === 0 || (candidate.rank > result.candidates[index - 1]!.rank &&
+        candidate.equity <= result.candidates[index - 1]!.equity + tolerance)) &&
+      candidate.tiedWithBest === (Math.abs(best.equity - candidate.equity) <= tolerance)) &&
+    Math.abs(result.equityLoss - (best.equity - played.equity)) <= tolerance &&
+    result.forced === (result.legalPositionCount === 1) &&
+    (!result.noPlay || (result.forced && result.candidates[0]!.segments.length === 0)) &&
+    (result.noPlay || result.candidates.every(({ segments }) => segments.length > 0)) &&
+    (result.provenance.effectiveProfile !== "quick-0ply-v1" ||
+      result.evaluatedPositionCount === result.legalPositionCount) &&
+    (result.provenance.effectiveProfile !== "deep-2ply-v1" ||
+      (result.evaluatedPositionCount >= Math.min(2, result.legalPositionCount) &&
+       result.evaluatedPositionCount <= BEP_ANALYSIS_LIMITS.maxDeepRootPositions));
+}
+
+export function isBepAnalyzeCubeResult(value: unknown): value is BepAnalyzeCubeResult {
+  if (!isRecord(value) || value.schemaVersion !== BEP_ANALYSIS_SCHEMA_VERSION ||
+    !isBepIdentifier(value.positionRevision) || !isPlayer(value.actor) ||
+    !isPlayer(value.equityPerspective) || (value.role !== "offer" && value.role !== "response") ||
+    !Array.isArray(value.availableActions) || value.availableActions.length !== 2 ||
+    new Set(value.availableActions).size !== 2 || !value.availableActions.includes(value.recommendedAction) ||
+    !isPositiveInteger(value.referenceCube) || value.referenceCube > BEP_RUNTIME_LIMITS.maxCubeValue ||
+    (value.referenceCube & (value.referenceCube - 1)) !== 0 ||
+    !isFiniteNumber(value.noDoubleEquity) || !isFiniteNumber(value.doubleTakeEquity) ||
+    !isFiniteNumber(value.doublePassEquity) || !isFiniteNumber(value.recordedActionEquity) ||
+    !isFiniteNumber(value.equityLoss) || value.equityLoss < 0 ||
+    !isFiniteNumber(value.elapsedMs) || value.elapsedMs < 0 ||
+    (value.tooGood !== undefined && typeof value.tooGood !== "boolean") ||
+    !isBepAnalysisProvenance(value.provenance)) return false;
+  const offered = Math.min(value.doubleTakeEquity, value.doublePassEquity);
+  const tolerance = BEP_ANALYSIS_LIMITS.equityTolerance;
+  if (value.role === "offer") {
+    const recommended = value.recommendedAction === "double" ? offered : value.noDoubleEquity;
+    if (Math.max(value.noDoubleEquity, offered) - recommended > tolerance ||
+      value.tooGood === true && (value.recommendedAction !== "no-double" ||
+        value.noDoubleEquity <= value.doublePassEquity)) return false;
+  } else {
+    const recommended = value.recommendedAction === "take" ? value.doubleTakeEquity : value.doublePassEquity;
+    if (recommended - offered > tolerance || value.tooGood === true) return false;
+  }
+  return value.role === "offer"
+    ? value.equityPerspective === value.actor &&
+      value.availableActions.includes("double") && value.availableActions.includes("no-double")
+    : value.equityPerspective !== value.actor &&
+      value.availableActions.includes("take") && value.availableActions.includes("pass");
+}
+
+/** Validate branch values, loss and actor against the common pre-offer context. */
+export function bepCubeAnalysisMatchesRequest(
+  request: BepAnalyzeCubeRequest,
+  result: BepAnalyzeCubeResult,
+): boolean {
+  if (!isBepAnalyzeCubeResult(result) ||
+    result.positionRevision !== request.position.revision || result.actor !== request.actor ||
+    result.role !== request.role || result.equityPerspective !== request.position.playerOnRoll ||
+    result.referenceCube !== request.position.cube.value ||
+    result.provenance.requestedProfile !== request.profile) return false;
+  const offered = Math.min(result.doubleTakeEquity, result.doublePassEquity);
+  const recorded = request.recordedAction === "no-double" ? result.noDoubleEquity :
+    request.recordedAction === "double" ? offered : request.recordedAction === "take" ?
+      result.doubleTakeEquity : result.doublePassEquity;
+  const loss = request.role === "offer" ? Math.max(result.noDoubleEquity, offered) - recorded : recorded - offered;
+  const tolerance = BEP_ANALYSIS_LIMITS.equityTolerance;
+  return Math.abs(recorded - result.recordedActionEquity) <= tolerance &&
+    Math.abs(loss - result.equityLoss) <= tolerance;
+}
+
+/** Correlation and candidate replay checks before a result crosses the capsule boundary. */
+export function bepCheckerAnalysisMatchesRequest(
+  request: BepAnalyzeCheckerRequest,
+  result: BepAnalyzeCheckerResult,
+): boolean {
+  if (!isBepAnalyzeCheckerResult(result) ||
+    result.positionRevision !== request.position.revision || result.actor !== request.actor ||
+    result.provenance.requestedProfile !== request.profile ||
+    result.playedCandidateId !== bepAnalysisCandidateId(request.expectedResultingBoard) ||
+    result.noPlay !== (request.playedTurn.steps.length === 0)) return false;
+  const topCount = Math.min(request.maxAlternatives, result.evaluatedPositionCount);
+  const top = result.candidates.slice(0, topCount);
+  if (top.length !== topCount || top.some(({ rank }, index) => rank !== index + 1) ||
+    result.candidates.length !== topCount +
+      (top.some(({ id }) => id === result.playedCandidateId) ? 0 : 1)) return false;
+  const actor = request.actor;
+  const opponent = actor === "white" ? "black" : "white";
+  // Distance from bearing off, in the actor's direction: off 0, bar 25.
+  const pips = (location: BepCheckerLocation) =>
+    location.kind === "borne-off" ? 0 : location.kind === "bar" ? 25 :
+      actor === "white" ? location.point + 1 : 24 - location.point;
+  const [first, second] = request.position.dice as readonly [number, number];
+  // GNUbg may merge one checker's consecutive moves into a segment, so only the
+  // total is bounded. A bear-off can use a larger die, so distance never exceeds it.
+  const dicePips = first === second ? 4 * first : first + second;
+  return result.candidates.every((candidate) => {
+    const board = {
+      points: request.position.board.points.map((point) => ({ ...point })),
+      bar: { ...request.position.board.bar },
+      borneOff: { ...request.position.board.borneOff },
+    };
+    let moved = 0;
+    let boreOff = false;
+    for (const segment of candidate.segments) {
+      const from = segment.from.kind === "bar" ? board.bar :
+        segment.from.kind === "point" ? board.points[segment.from.point] : undefined;
+      if (!from || from[actor] < 1 || (segment.from.kind !== "bar" && board.bar[actor] > 0)) return false;
+      const distance = pips(segment.from) - pips(segment.to);
+      moved += distance;
+      if (distance < 1 || moved > dicePips) return false;
+      from[actor] -= 1;
+      if (segment.to.kind === "borne-off") {
+        if (segment.from.kind !== "point" || segment.hit) return false;
+        board.borneOff[actor] += 1;
+        boreOff = true;
+      } else if (segment.to.kind === "point") {
+        const to = board.points[segment.to.point]!;
+        if (to[opponent] > 1 || segment.hit !== (to[opponent] === 1)) return false;
+        if (segment.hit) { to[opponent] = 0; board.bar[opponent] += 1; }
+        to[actor] += 1;
+      } else return false;
+    }
+    // Checkers never leave the home board, so a turn that bears off ends with
+    // every remaining checker home. Checked after the turn: segment order varies.
+    if (boreOff && (board.bar[actor] > 0 || board.points.some((point, index) =>
+      point[actor] > 0 && pips({ kind: "point", point: index }) > 6))) return false;
+    return bepAnalysisCandidateId(board) === candidate.id;
+  });
+}
+
+
 const CUBE_DECISIONS: readonly BepCubeDecision[] = [
   "double",
   "no-double",
@@ -593,6 +876,7 @@ const isEngineCapabilities = (
   typeof value.moneyPlay === "boolean" &&
   typeof value.cancellation === "boolean" &&
   typeof value.deterministic === "boolean" &&
+  (value.analysis === undefined || isAnalysisCapabilities(value.analysis)) &&
   Array.isArray(value.variations) &&
   value.variations.length <= 64 &&
   value.variations.every(
@@ -627,6 +911,13 @@ const isEngineMetadata = (value: unknown): value is BepEngineMetadata =>
     isNonNegativeInteger(value.runtime.approximateDownloadBytes)) &&
   (value.runtime.approximateMemoryBytes === undefined ||
     isNonNegativeInteger(value.runtime.approximateMemoryBytes)) &&
+  (value.runtime.wasmMemoryBytes === undefined ||
+    isPositiveInteger(value.runtime.wasmMemoryBytes)) &&
+  (value.runtime.wasmMemoryLimitBytes === undefined ||
+    isPositiveInteger(value.runtime.wasmMemoryLimitBytes)) &&
+  (value.runtime.wasmMemoryBytes === undefined ||
+    value.runtime.wasmMemoryLimitBytes === undefined ||
+    value.runtime.wasmMemoryBytes <= value.runtime.wasmMemoryLimitBytes) &&
   isEngineCapabilities(value.capabilities);
 
 const isHelloResult = (value: unknown): value is BepHelloResult =>
@@ -722,7 +1013,8 @@ export const isBepChannelConnectMessage = (
   value.kind === "bep.channel-connect";
 
 export const isBepMethod = (value: unknown): value is BepMethod =>
-  value === "hello" || value === "choose-turn" || value === "decide-cube";
+  value === "hello" || value === "choose-turn" || value === "decide-cube" ||
+  value === "analyze-checker" || value === "analyze-cube";
 
 const isRequestPayload = (method: BepMethod, payload: unknown): boolean => {
   switch (method) {
@@ -732,6 +1024,10 @@ const isRequestPayload = (method: BepMethod, payload: unknown): boolean => {
       return isBepChooseTurnRequest(payload);
     case "decide-cube":
       return isBepCubeDecisionRequest(payload);
+    case "analyze-checker":
+      return isBepAnalyzeCheckerRequest(payload);
+    case "analyze-cube":
+      return isBepAnalyzeCubeRequest(payload);
   }
 };
 
@@ -743,6 +1039,10 @@ const isResultPayload = (method: BepMethod, payload: unknown): boolean => {
       return isChooseTurnResult(payload);
     case "decide-cube":
       return isCubeResult(payload);
+    case "analyze-checker":
+      return isBepAnalyzeCheckerResult(payload);
+    case "analyze-cube":
+      return isBepAnalyzeCubeResult(payload);
   }
 };
 

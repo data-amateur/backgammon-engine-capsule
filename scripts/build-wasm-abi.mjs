@@ -141,7 +141,7 @@ const compileFlags = [
   "-sASSERTIONS=1",
   "-sERROR_ON_UNDEFINED_SYMBOLS=1",
   "-sEXPORTED_RUNTIME_METHODS=[\"HEAPU8\"]",
-  "-sEXPORTED_FUNCTIONS=[\"_malloc\",\"_free\",\"_bgc_wasm_abi_version\",\"_bgc_wasm_abi_descriptor_size\",\"_bgc_wasm_get_abi_descriptor\"]",
+  "-sEXPORTED_FUNCTIONS=[\"_malloc\",\"_free\",\"_bgc_wasm_abi_version\",\"_bgc_wasm_abi_descriptor_size\",\"_bgc_wasm_get_abi_descriptor\",\"_bgc_wasm_analysis_descriptor_size\",\"_bgc_wasm_get_analysis_descriptor\"]",
   `-I${sourceRoot}`,
   path.join(sourceRoot, "gnubg_wasm_abi.c"),
   "-o",

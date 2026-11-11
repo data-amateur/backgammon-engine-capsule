@@ -1,7 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import type {
+  BepAnalyzeCubeRequest,
+  BepAnalyzeCheckerRequest,
   BepChooseTurnRequest,
   BepCubeDecisionRequest,
 } from "../../src/protocol/types";
@@ -299,6 +302,127 @@ function expectEngineError(
 
 type BepEngineErrorCode = GnubgEngineError["bepError"]["code"];
 
+const terminalRequest = JSON.parse(readFileSync(
+  new URL("../fixtures/bep-analysis-v1.json", import.meta.url), "utf8",
+)).validHostMessages[0].payload as BepAnalyzeCheckerRequest;
+
+async function createAnalysisEngine(options: {
+  readonly corrupt?: (view: DataView, resultOffset: number, candidatesOffset: number) => void;
+  readonly grow?: boolean;
+  readonly badDescriptor?: boolean;
+} = {}) {
+  const module = new FakeGnubgModule();
+  let snapshot: Uint8Array | undefined;
+  Object.assign(module, {
+    _bgc_wasm_analysis_descriptor_size: () => 64,
+    _bgc_wasm_get_analysis_descriptor: (pointer: number, size: number) => {
+      const view = new DataView(module.HEAPU8.buffer, pointer, size);
+      const fields = [ABI_VERSION, 64, 0x01020304, 4, 312, 64, 152, 20, 4096, 5, 6, 0, 0, 0, 0, 0];
+      fields.forEach((value, index) => view.setUint32(index * 4, value, true));
+      if (options.badDescriptor) view.setUint32(24, 156, true);
+      return 0;
+    },
+    _bgc_wasm_analyze_checker: (
+      arena: number, size: number, requestOffset: number, resultOffset: number, errorOffset: number,
+    ) => {
+      snapshot = module.HEAPU8.slice(arena, arena + size);
+      if (options.grow) {
+        const next = new Uint8Array(module.HEAPU8.length * 2);
+        next.set(module.HEAPU8);
+        module.HEAPU8 = next;
+      }
+      const view = new DataView(module.HEAPU8.buffer, arena, size);
+      const candidatesOffset = view.getUint32(requestOffset + 292, true);
+      const steps = view.getUint32(requestOffset + 128, true);
+      module.HEAPU8.fill(0, arena + candidatesOffset, arena + errorOffset + 256);
+      // Independent terminal fixture: one forced single win at normalized +1.
+      module.HEAPU8.copyWithin(arena + candidatesOffset, arena + requestOffset + 232, arena + requestOffset + 284);
+      view.setUint32(candidatesOffset + 52, steps, true);
+      for (let index = 0; index < steps; index++) {
+        const from = requestOffset + 136 + index * 24;
+        const to = candidatesOffset + 56 + index * 20;
+        for (let field = 0; field < 16; field += 4)
+          view.setUint32(to + field, view.getUint32(from + field, true), true);
+        view.setUint32(to + 16, view.getUint32(from + 20, true), true);
+      }
+      view.setFloat32(candidatesOffset + 136, 1, true);
+      view.setUint32(candidatesOffset + 140, 1, true);
+      view.setUint32(candidatesOffset + 144, 1, true);
+      const profile = view.getUint32(requestOffset + 284, true);
+      const fields = [ABI_VERSION, 64, 1, 0, 1, 1, 1, steps === 0 ? 1 : 0, 0, profile === 2 ? 2 : 0, 1, 1, 0, profile === 2 ? 1 : 0, profile, 0];
+      fields.forEach((value, index) => view.setUint32(resultOffset + index * 4, value, true));
+      options.corrupt?.(view, resultOffset, candidatesOffset);
+      return 0;
+    },
+  });
+  const base = "https://capsule.test/engines/sha256-" + "0".repeat(64) + "/";
+  const engine = await GnubgEngine.create({
+    moduleUrl: base + "gnubg-wasm.mjs",
+    wasmUrl: base + "gnubg-wasm.wasm",
+    dataUrl: base + "gnubg-wasm.data",
+  }, async () => async () => module);
+  return { engine, module, snapshot: () => snapshot };
+}
+
+describe("analysis WASM decoding", () => {
+  it("verifies the additive descriptor, exact layout, provenance and refreshed heap", async () => {
+    const { engine, snapshot } = await createAnalysisEngine({ grow: true });
+    expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
+      .metadata.capabilities.analysis?.profiles).toEqual(["quick-0ply-v1", "deep-2ply-v1"]);
+    const result = engine.analyzeChecker(terminalRequest);
+    expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
+      .metadata.capabilities.analysis?.quickProvenance).toEqual(result.provenance);
+    expect(result).toMatchObject({
+      forced: true, noPlay: false, playedLegal: true, equityLoss: 0,
+      legalPositionCount: 1, evaluatedPositionCount: 1,
+      provenance: { depth: 0, noise: 0, cubeful: true, pruning: false, effectiveProfile: "quick-0ply-v1" },
+    });
+    expect(result.candidates[0]?.segments).toEqual([
+      { from: { kind: "point", point: 0 }, to: { kind: "borne-off" }, hit: false },
+    ]);
+    const request = snapshotView(snapshot());
+    expect(request.getUint32(4, true)).toBe(312);
+    expect(request.getUint32(128, true)).toBe(1);
+    expect(request.getUint32(152, true)).toBe(2);
+    expect(request.getUint8(282)).toBe(15);
+    expect(request.getUint32(284, true)).toBe(1);
+    expect(request.getUint32(288, true)).toBe(5);
+    expect(request.getUint32(292, true)).toBe(312);
+    expect(request.getUint32(296, true)).toBe(6);
+    engine.dispose();
+  });
+  it("sends the fixed 2-ply profile and validates the native effective settings", async () => {
+    const { engine, snapshot } = await createAnalysisEngine();
+    const result = engine.analyzeChecker({ ...terminalRequest, profile: "deep-2ply-v1", timeMs: 1 });
+    expect(snapshotView(snapshot()).getUint32(284, true)).toBe(2);
+    expect(result.provenance).toMatchObject({ depth: 2, pruning: true, noise: 0, completion: "complete" });
+    expect(engine.hello({ supportedProtocolVersions: [1], host: { name: "Host", version: "1" } })
+      .metadata.capabilities.analysis?.deepProvenance).toEqual(result.provenance);
+    engine.dispose();
+  });
+  it("rejects a weaker native result for Deeper rather than accepting a fallback", async () => {
+    const { engine } = await createAnalysisEngine({ corrupt: (view, result) => view.setUint32(result + 36, 0, true) });
+    expect(() => engine.analyzeChecker({ ...terminalRequest, profile: "deep-2ply-v1" })).toThrow(/invalid analysis settings/);
+    engine.dispose();
+  });
+  it("rejects a changed analysis layout before initializing GNUbg", async () => {
+    await expect(createAnalysisEngine({ badDescriptor: true })).rejects.toThrow(/layout/);
+  });
+  it.each([
+    ["nonfinite equity", (view: DataView, _result: number, candidate: number) => view.setFloat32(candidate + 136, NaN, true)],
+    ["excess candidates", (view: DataView, result: number) => view.setUint32(result + 8, 7, true)],
+    ["wrong played board", (view: DataView, _result: number, candidate: number) => view.setUint8(candidate + 50, 14)],
+    ["different effective depth", (view: DataView, result: number) => view.setUint32(result + 36, 2, true)],
+    ["incomplete root coverage", (view: DataView, result: number) => view.setUint32(result + 16, 2, true)],
+    ["bad rank", (view: DataView, _result: number, candidate: number) => view.setUint32(candidate + 140, 2, true)],
+  ])("makes a corrupt %s terminal", async (_label, corrupt) => {
+    const { engine } = await createAnalysisEngine({ corrupt });
+    expect(() => engine.analyzeChecker(terminalRequest)).toThrow(GnubgEngineError);
+    expect(() => engine.analyzeChecker(terminalRequest)).toThrow(/fresh Worker/);
+    engine.dispose();
+  });
+});
+
 describe("GNUbg WebAssembly engine", () => {
   it("verifies the descriptor, allowlists assets, and initializes exact virtual paths", async () => {
     const module = new FakeGnubgModule();
@@ -338,7 +462,12 @@ describe("GNUbg WebAssembly engine", () => {
       supportedProtocolVersions: [1],
       host: { name: "Host", version: "1" },
     });
-    expect(hello.metadata).toBe(GNUBG_ENGINE_METADATA);
+    expect(hello.metadata).toMatchObject({
+      engineId: GNUBG_ENGINE_METADATA.engineId,
+      version: GNUBG_ENGINE_METADATA.version,
+    });
+    // The frozen v1-only fake module still plays; it advertises no analysis.
+    expect(hello.metadata.capabilities.analysis).toBeUndefined();
     expect(hello.metadata.license.spdxId).toBe("GPL-3.0-or-later");
     expect(hello.metadata.capabilities.moveRanking).toBe(true);
     engine.dispose();
@@ -594,8 +723,16 @@ describe("GNUbg WebAssembly engine", () => {
       },
     };
     const originalBuffer = module.HEAPU8.buffer;
+    const helloRequest = { supportedProtocolVersions: [1] as const, host: { name: "Host", version: "1" } };
+    const initialMemory = engine.hello(helloRequest).metadata.runtime.wasmMemoryBytes;
+    expect(initialMemory).toBe(module.HEAPU8.byteLength);
     const result = engine.chooseTurn(request);
     expect(module.HEAPU8.buffer).not.toBe(originalBuffer);
+    expect(engine.hello(helloRequest).metadata.runtime).toMatchObject({
+      wasmMemoryBytes: module.HEAPU8.byteLength,
+      wasmMemoryLimitBytes: 128 * 1024 * 1024,
+    });
+    expect(module.HEAPU8.byteLength).toBeGreaterThan(initialMemory!);
     expect(result.chosenTurnId).toBe("turn:tie-winner");
     expect(result.rankedTurns).toEqual([
       { turnId: "turn:tie-winner", rank: 1, score: 0.5 },
@@ -802,5 +939,37 @@ describe("GNUbg WebAssembly engine", () => {
       }),
     })).toThrowError(GnubgEngineError);
     engine.dispose();
+  });
+});
+
+const cubeCorpus = JSON.parse(readFileSync(new URL("../fixtures/bep-analysis-v1.json", import.meta.url), "utf8")) as {validHostMessages: {method:string;payload:unknown}[]};
+describe("cube analysis WASM decoding",()=>{
+  it.each(["no-double","double","take","pass"] as const)("exposes native branch equities and correct loss for %s",async action=>{
+    const {engine,module}=await createAnalysisEngine();module.cubeEvaluated=true;
+    module.cubeEquities=[0.6,0.6,0.3,0.6,1];
+    const response=action==="take"||action==="pass";
+    module.cubeSelectedIndex=response?0:1;
+    const request=structuredClone(cubeCorpus.validHostMessages.find(item=>item.method==="analyze-cube")!.payload) as BepAnalyzeCubeRequest;
+    Object.assign(request,{role:response?"response":"offer",actor:response?"black":"white",recordedAction:action});
+    const result=engine.analyzeCube(request);
+    expect(result).toMatchObject({referenceCube:1,equityPerspective:"white",actor:request.actor,
+      noDoubleEquity:expect.closeTo(0.3),doubleTakeEquity:expect.closeTo(0.6),doublePassEquity:1,
+      equityLoss:expect.closeTo(action==="no-double"?0.3:action==="pass"?0.4:0)});
+    expect(snapshotView(module.cubeSnapshot).getUint32(164,true)).toBe(3);
+    engine.dispose();
+  });
+  it("does not publish placeholder equities when native evaluated=false; rejection is recoverable",async()=>{
+    const {engine,module}=await createAnalysisEngine();
+    const request=cubeCorpus.validHostMessages.find(item=>item.method==="analyze-cube")!.payload as BepAnalyzeCubeRequest;
+    expect(()=>engine.analyzeCube(request)).toThrow(/did not evaluate/);
+    module.cubeEvaluated=true;module.cubeEquities=[0.6,0.6,0.3,0.6,1];module.cubeSelectedIndex=1;
+    expect(engine.analyzeCube(request).equityLoss).toBeCloseTo(0.3);engine.dispose();
+  });
+  it("retains native too-good semantics and rejects nonfinite output",async()=>{
+    const {engine,module}=await createAnalysisEngine();
+    const request=cubeCorpus.validHostMessages.find(item=>item.method==="analyze-cube")!.payload as BepAnalyzeCubeRequest;
+    module.cubeEvaluated=true;module.cubeEquities=[1.4,1.4,1.4,2,1];module.cubeSelectedIndex=2;
+    expect(engine.analyzeCube(request)).toMatchObject({tooGood:true,recommendedAction:"no-double",equityLoss:0});
+    module.cubeEquities=[1.4,1.4,NaN,2,1];expect(()=>engine.analyzeCube(request)).toThrow(/cube equities/);engine.dispose();
   });
 });

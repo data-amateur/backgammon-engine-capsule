@@ -16,7 +16,7 @@ import type {
 } from "../worker/messages";
 import type { GnubgAssetUrls } from "../worker/gnubgEngine";
 
-const WORKER_READY_TIMEOUT_MS = 8_000;
+const WORKER_READY_TIMEOUT_MS = 30_000;
 
 export class WorkerRuntimeStartupError extends Error {
   public constructor(
@@ -427,6 +427,20 @@ export class WorkerRuntime {
     // The repeated branches intentionally preserve method/payload correlation
     // while constructing the internal discriminated union without a cast.
     switch (request.method) {
+      case "analyze-checker":
+        return {
+          kind: "capsule.worker-request",
+          requestId: request.requestId,
+          method: request.method,
+          payload: request.payload,
+        };
+      case "analyze-cube":
+        return {
+          kind: "capsule.worker-request",
+          requestId: request.requestId,
+          method: request.method,
+          payload: request.payload,
+        };
       case "hello":
         return {
           kind: "capsule.worker-request",

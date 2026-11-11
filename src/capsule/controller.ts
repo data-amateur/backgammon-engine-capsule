@@ -4,6 +4,9 @@ import {
   WorkerRuntimeStartupError,
 } from "./workerRuntime";
 import {
+  hasBepAnalysisCapability,
+  bepCheckerAnalysisMatchesRequest,
+  bepCubeAnalysisMatchesRequest,
   isBepEngineToHostMessage,
   isBepHostToEngineMessage,
 } from "../protocol/validation";
@@ -12,6 +15,7 @@ import {
   BEP_RUNTIME_LIMITS,
   BEP_VERSION,
   type BepEngineError,
+  type BepEngineMetadata,
   type BepEngineToHostMessage,
   type BepMethod,
   type BepRequestMessage,
@@ -44,6 +48,7 @@ export class CapsuleController {
   private port: MessagePort | null = null;
   private runtime: WorkerRuntime | null = null;
   private runtimePromise: Promise<WorkerRuntime> | null = null;
+  private metadata: BepEngineMetadata | null = null;
   private readonly activeRequests = new Map<string, BepRequestMessage>();
   private readonly requestTimeouts = new Map<
     string,
@@ -132,6 +137,30 @@ export class CapsuleController {
   };
 
   private async handleRequest(request: BepRequestMessage): Promise<void> {
+    const analysisRequest = request.method === "analyze-checker" || request.method === "analyze-cube";
+    if (analysisRequest) {
+      if (!this.metadata || !hasBepAnalysisCapability(
+        this.metadata, request.method, request.payload.profile,
+      )) {
+        this.postError(request.requestId, request.method, {
+          code: this.metadata ? "unsupported" : "not-ready",
+          message: this.metadata ? "The requested analysis method or profile is unavailable" :
+            "Complete the engine handshake before requesting analysis",
+          retryable: false,
+        });
+        return;
+      }
+    }
+    if (request.method !== "hello" && [...this.activeRequests.values()].some((active) =>
+      active.method !== "hello" && (analysisRequest ||
+        active.method === "analyze-checker" || active.method === "analyze-cube"))) {
+      this.postError(request.requestId, request.method, {
+        code: "busy",
+        message: "Only one evaluation may run while analysis is active",
+        retryable: true,
+      });
+      return;
+    }
     if (this.activeRequests.has(request.requestId)) {
       this.postError(request.requestId, request.method, {
         code: "busy",
@@ -179,11 +208,12 @@ export class CapsuleController {
         }
       },
       onError: (requestId, method, error) => {
-        this.clearRequestTimeout(requestId);
         if (
           this.runtime === runtime &&
+          this.activeRequests.get(requestId)?.method === method &&
           this.activeRequests.delete(requestId)
         ) {
+          this.clearRequestTimeout(requestId);
           this.postError(requestId, method, error);
         }
       },
@@ -287,6 +317,9 @@ export class CapsuleController {
     }
 
     this.activeRequests.delete(requestId);
+    if (candidate.kind === "bep.result" && candidate.method === "hello") {
+      this.metadata = candidate.payload.metadata;
+    }
     this.port?.postMessage(candidate);
   }
 
@@ -337,6 +370,18 @@ export class CapsuleController {
         request.payload.legalDecisions.includes(result.payload.decision)
       );
     }
+    if (request.method === "analyze-checker" && result.method === "analyze-checker") {
+      return bepCheckerAnalysisMatchesRequest(request.payload, result.payload) &&
+        result.payload.provenance.engineId === this.metadata?.engineId &&
+        result.payload.provenance.engineVersion === this.metadata?.version &&
+        result.payload.provenance.buildId === this.metadata?.buildId;
+    }
+    if (request.method === "analyze-cube" && result.method === "analyze-cube") {
+      return bepCubeAnalysisMatchesRequest(request.payload, result.payload) &&
+        result.payload.provenance.engineId === this.metadata?.engineId &&
+        result.payload.provenance.engineVersion === this.metadata?.version &&
+        result.payload.provenance.buildId === this.metadata?.buildId;
+    }
     return false;
   }
 
@@ -366,7 +411,8 @@ export class CapsuleController {
     if (request.method === "hello") {
       return;
     }
-    const timeMs = request.payload.settings.limits.timeMs;
+    const timeMs = request.method === "analyze-checker" || request.method === "analyze-cube"
+      ? request.payload.timeMs : request.payload.settings.limits.timeMs;
     if (timeMs === undefined) {
       return;
     }

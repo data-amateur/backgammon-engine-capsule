@@ -62,4 +62,27 @@ try {
   module._free(pointer);
 }
 
+assert.equal(module._bgc_wasm_analysis_descriptor_size(), 64);
+assert.equal(module._bgc_wasm_get_analysis_descriptor(0, 64), 1);
+const analysisPointer = module._malloc(64);
+assert.notEqual(analysisPointer, 0);
+
+try {
+  module.HEAPU8.fill(0xa5, analysisPointer, analysisPointer + 64);
+  const unchanged = module.HEAPU8.slice(analysisPointer, analysisPointer + 64);
+  assert.equal(module._bgc_wasm_get_analysis_descriptor(analysisPointer, 63), 1);
+  assert.deepEqual(module.HEAPU8.slice(analysisPointer, analysisPointer + 64), unchanged);
+  assert.equal(module._bgc_wasm_get_analysis_descriptor(analysisPointer, 64), 0);
+  const view = new DataView(module.HEAPU8.buffer, analysisPointer, 64);
+  const expected = [0x0001_0000, 64, 0x0102_0304, 4, 312, 64, 152, 20, 4096, 5, 6];
+  for (let index = 0; index < expected.length; index += 1) {
+    assert.equal(view.getUint32(index * 4, true), expected[index], `analysis descriptor +${index * 4}`);
+  }
+  for (let offset = 44; offset < 64; offset += 4) {
+    assert.equal(view.getUint32(offset, true), 0, `analysis reserved +${offset}`);
+  }
+} finally {
+  module._free(analysisPointer);
+}
+
 console.log("Pinned Emscripten wasm32 ABI smoke test passed");

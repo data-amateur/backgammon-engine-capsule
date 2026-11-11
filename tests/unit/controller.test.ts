@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import type {
   BepEngineError,
   BepMethod,
   BepRequestMessage,
+  BepEngineMetadata,
+  BepAnalyzeCheckerResult,
 } from "../../src/protocol/types";
 import { BEP_PROTOCOL, BEP_VERSION } from "../../src/protocol/types";
 import type { GnubgAssetUrls } from "../../src/worker/gnubgEngine";
+import { GNUBG_ENGINE_METADATA } from "../../src/worker/gnubgEngine";
 import { createChooseRequest } from "./fixtures";
 
 interface RuntimeHandlersDouble {
@@ -195,6 +199,136 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.clearAllMocks();
+});
+
+const analysisCorpus = JSON.parse(readFileSync(
+  new URL("../fixtures/bep-analysis-v1.json", import.meta.url), "utf8",
+));
+
+function createAnalysisMessage(requestId = "request:analysis"): BepRequestMessage<"analyze-checker"> {
+  return { ...analysisCorpus.validHostMessages[0], requestId };
+}
+
+function analysisResult(): BepAnalyzeCheckerResult {
+  const payload = analysisCorpus.validEngineMessages[0].payload as BepAnalyzeCheckerResult;
+  return { ...payload, provenance: { ...payload.provenance, buildId: GNUBG_ENGINE_METADATA.buildId } };
+}
+
+async function completeHello(
+  connection: ReturnType<typeof connectController>,
+  metadata: BepEngineMetadata = GNUBG_ENGINE_METADATA,
+) {
+  const message = createHelloMessage();
+  connection.hostPort.postMessage(message);
+  const runtime = await getRuntime();
+  await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledWith(message));
+  runtime.handlers.onResult(message.requestId, "hello", { selectedProtocolVersion: 1, metadata });
+  await vi.waitFor(() => expect(connection.received).toContainEqual(
+    expect.objectContaining({ kind: "bep.result", requestId: message.requestId }),
+  ));
+  return runtime;
+}
+
+describe("analysis controller lifecycle", () => {
+  it("gates analysis before hello and when an old capsule omits the capability", async () => {
+    const connection = connectController();
+    const before = createAnalysisMessage("request:before-hello");
+    connection.hostPort.postMessage(before);
+    await vi.waitFor(() => expect(connection.received).toContainEqual(expect.objectContaining({
+      requestId: before.requestId, error: expect.objectContaining({ code: "not-ready" }),
+    })));
+    expect(runtimeHarness.instances).toHaveLength(0);
+    const capabilities = { ...GNUBG_ENGINE_METADATA.capabilities };
+    delete capabilities.analysis;
+    const runtime = await completeHello(connection, { ...GNUBG_ENGINE_METADATA, capabilities });
+    const unsupported = createAnalysisMessage("request:old-capsule");
+    connection.hostPort.postMessage(unsupported);
+    await vi.waitFor(() => expect(connection.received).toContainEqual(expect.objectContaining({
+      requestId: unsupported.requestId, error: expect.objectContaining({ code: "unsupported" }),
+    })));
+    expect(runtime.request).not.toHaveBeenCalledWith(unsupported);
+  });
+  it("correlates one analysis request, ignores duplicate responses, and rejects concurrent computation", async () => {
+    const connection = connectController();
+    const runtime = await completeHello(connection);
+    const message = createAnalysisMessage();
+    connection.hostPort.postMessage(message);
+    await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledWith(message));
+    const concurrent = createChooseMessage("request:concurrent");
+    connection.hostPort.postMessage(concurrent);
+    await vi.waitFor(() => expect(connection.received).toContainEqual(expect.objectContaining({
+      requestId: concurrent.requestId, error: expect.objectContaining({ code: "busy" }),
+    })));
+    runtime.handlers.onError(message.requestId, "choose-turn", {
+      code: "illegal-turn", message: "Uncorrelated error", retryable: false,
+    });
+    runtime.handlers.onResult(message.requestId, "analyze-checker", analysisResult());
+    runtime.handlers.onResult(message.requestId, "analyze-checker", analysisResult());
+    await vi.waitFor(() => expect(connection.received.filter((result) =>
+      typeof result === "object" && result !== null &&
+      Reflect.get(result, "requestId") === message.requestId)).toHaveLength(1));
+    expect(connection.received).toContainEqual(expect.objectContaining({
+      requestId: message.requestId, kind: "bep.result",
+    }));
+  });
+  it("rejects stale revisions, wrong actors and false provenance", async () => {
+    const connection = connectController();
+    const runtime = await completeHello(connection);
+    const variants = [
+      { ...analysisResult(), positionRevision: "position:stale" },
+      { ...analysisResult(), actor: "black" },
+      { ...analysisResult(), provenance: { ...analysisResult().provenance, buildId: "other-build" } },
+    ];
+    for (const [index, payload] of variants.entries()) {
+      const message = createAnalysisMessage("request:invalid:" + index);
+      connection.hostPort.postMessage(message);
+      await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledWith(message));
+      runtime.handlers.onResult(message.requestId, "analyze-checker", payload);
+      await vi.waitFor(() => expect(connection.received).toContainEqual(expect.objectContaining({
+        requestId: message.requestId, error: expect.objectContaining({ code: "internal-error" }),
+      })));
+    }
+  });
+  it.each(["caller", "timeout"] as const)("terminates %s work, ignores late results, and starts a fresh runtime", async (reason) => {
+    let deadline: (() => void) | undefined;
+    const nativeSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]
+    ) => {
+      if (delay === 10_000) {
+        deadline = () => callback(...args);
+        return 987 as unknown as ReturnType<typeof globalThis.setTimeout>;
+      }
+      return nativeSetTimeout(callback, delay, ...args);
+    }) as typeof globalThis.setTimeout);
+    const connection = connectController();
+    const runtime = await completeHello(connection);
+    const message = createAnalysisMessage("request:interrupted");
+    connection.hostPort.postMessage(message);
+    await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledWith(message));
+    if (reason === "timeout") deadline?.();
+    else connection.hostPort.postMessage({
+      protocol: BEP_PROTOCOL, version: BEP_VERSION, sessionNonce: NONCE,
+      kind: "bep.cancel", requestId: message.requestId, reason,
+    });
+    await vi.waitFor(() => expect(runtime.cancel).toHaveBeenCalledWith(message.requestId));
+    runtime.handlers.onResult(message.requestId, "analyze-checker", analysisResult());
+    const next = createAnalysisMessage("request:retry-analysis");
+    connection.hostPort.postMessage(next);
+    const fresh = await getRuntime(1);
+    await vi.waitFor(() => expect(fresh.request).toHaveBeenCalledWith(next));
+    fresh.handlers.onResult(next.requestId, "analyze-checker", analysisResult());
+    await vi.waitFor(() => expect(connection.received).toContainEqual(expect.objectContaining({
+      kind: "bep.result", requestId: next.requestId,
+    })));
+    expect(connection.received.filter((result) =>
+      typeof result === "object" && result !== null &&
+      Reflect.get(result, "kind") === "bep.result" &&
+      Reflect.get(result, "requestId") === message.requestId)).toHaveLength(0);
+    if (reason === "timeout") expect(connection.received).toContainEqual(expect.objectContaining({
+      requestId: message.requestId, error: expect.objectContaining({ code: "timeout" }),
+    }));
+  });
 });
 
 describe("CapsuleController", () => {
