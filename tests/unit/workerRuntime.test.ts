@@ -228,7 +228,9 @@ describe("WorkerRuntime startup", () => {
     securityError.name = "SecurityError";
     vi.stubGlobal(
       "Worker",
-      vi.fn(() => {
+      // Vitest 4 constructs a mock's implementation under `new`, and an arrow
+      // function is not constructible; a regular function throws as intended.
+      vi.fn(function () {
         throw securityError;
       }),
     );
