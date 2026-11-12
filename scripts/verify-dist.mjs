@@ -486,11 +486,13 @@ const immutablePatterns = [
   manifest.sourceBundle.publicBase + "*",
 ];
 const sourceArchivePattern = `/${manifest.sourceBundle.path}`;
+const engineDataPattern = `${manifest.publicBase}gnubg-wasm.data`;
 const expectedPatterns = [
   "/*",
   ...noCachePatterns,
   ...immutablePatterns,
   sourceArchivePattern,
+  engineDataPattern,
 ];
 const globalHeaders = headerRules.get("/*");
 const contentSecurityPolicy = globalHeaders?.get("Content-Security-Policy");
@@ -518,6 +520,9 @@ if (
     "Content-Encoding": "identity",
     "Content-Disposition":
       "attachment; filename=backgammon-engine-capsule-source.tar.gz",
+  }) ||
+  !hasExactHeaderRule(engineDataPattern, {
+    "Content-Type": "application/octet-stream",
   }) ||
   !contentSecurityPolicy?.includes("'wasm-unsafe-eval'") ||
   contentSecurityPolicy.includes(" 'unsafe-eval'")

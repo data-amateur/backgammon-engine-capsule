@@ -140,6 +140,7 @@ function emitStaticHostHeaders(
   headers: Readonly<Record<string, string>>,
   immutableAssetPatterns: readonly string[],
   sourceArchivePath: string,
+  engineDataPath: string,
 ): Plugin {
   return {
     name: "emit-capsule-security-headers",
@@ -178,6 +179,11 @@ function emitStaticHostHeaders(
           "  Content-Type: application/gzip",
           "  Content-Encoding: identity",
           "  Content-Disposition: attachment; filename=backgammon-engine-capsule-source.tar.gz",
+          "",
+          // Hosts infer file types differently per upload tool; one left the
+          // preloaded data file without any Content-Type.
+          engineDataPath,
+          "  Content-Type: application/octet-stream",
           "",
         ].join("\n"),
       });
@@ -275,6 +281,10 @@ export default defineConfig(({ mode }) => {
   if (immutableContentPaths.size === 0) {
     throw new Error("Generated GNUbg browser manifest has no engine assets");
   }
+  const engineDataPath = `${manifest.publicBase}gnubg-wasm.data`;
+  if (!immutableContentPaths.has(engineDataPath)) {
+    throw new Error("Generated GNUbg browser manifest has no engine data file");
+  }
   immutableContentPaths.add(`/${manifest.sourceBundle.path}`);
   return {
     publicDir: generatedPublicRoot,
@@ -287,7 +297,7 @@ export default defineConfig(({ mode }) => {
       emitStaticHostHeaders(headers, [
         `${manifest.publicBase}*`,
         `${manifest.sourceBundle.publicBase}*`,
-      ], `/${manifest.sourceBundle.path}`),
+      ], `/${manifest.sourceBundle.path}`, engineDataPath),
       applyPreviewCachePolicy(
         immutableContentPaths,
         `/${manifest.sourceBundle.path}`,
